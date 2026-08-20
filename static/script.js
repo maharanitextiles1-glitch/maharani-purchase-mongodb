@@ -44,70 +44,9 @@ async function savePurchase(){
  saveBtn.disabled=true;saveBtn.textContent="Saving...";
  try{const r=await fetch("/api/purchases",{method:"POST",body:fd}),d=await r.json();if(!r.ok)throw new Error(d.error||"Could not save purchase.");toast("Purchase saved.");clearForm();loadHistory();}catch(e){toast(e.message);}finally{saveBtn.disabled=false;saveBtn.textContent="Save Purchase to Database";}
 }
-async function loadHistory() {
-  historyList.innerHTML = '<div class="empty-history">Loading...</div>';
-
-  try {
-    const r = await fetch("/api/purchases");
-    const arr = await r.json();
-
-    if (!arr.length) {
-      historyList.innerHTML =
-        '<div class="empty-history">No saved purchases yet.</div>';
-      return;
-    }
-
-    historyList.innerHTML = arr.map(p => `
-      <div class="history-row">
-
-        <div>
-          <strong>${esc(p.supplier_name)}</strong>
-          <small>${esc(p.supplier_place || "—")}</small>
-        </div>
-
-        <div>
-          <strong>${esc(p.purchase_date)}</strong>
-          <small>${esc(p.transport_method || "No transport")}</small>
-        </div>
-
-        <div>
-          <strong>
-            ${p.total_quantity || 0} pcs /
-            ${fmt(p.total_meter || 0)} m
-          </strong>
-          <small>Purchased</small>
-        </div>
-
-        <div>
-          <strong class="amount">
-            ${money(p.grand_total)}
-          </strong>
-          <small>Total</small>
-        </div>
-
-        <div class="history-actions">
-
-          <button
-            class="secondary"
-            onclick="printPurchaseById('${p.id}')">
-            Print
-          </button>
-
-          <button
-            class="secondary danger"
-            onclick="deletePurchase('${p.id}')">
-            Delete
-          </button>
-
-        </div>
-
-      </div>
-    `).join("");
-
-  } catch (error) {
-    historyList.innerHTML =
-      '<div class="empty-history">Could not load purchase history.</div>';
-  }
+async function loadHistory(){
+ historyList.innerHTML='<div class="empty-history">Loading...</div>';
+ try{const r=await fetch("/api/purchases"),arr=await r.json();if(!arr.length){historyList.innerHTML='<div class="empty-history">No saved purchases yet.</div>';return;}historyList.innerHTML=arr.map(p=>`<div class="history-row"><div><strong>${esc(p.supplier_name)}</strong><small>${esc(p.supplier_place||"—")}</small></div><div><strong>${esc(p.purchase_date)}</strong><small>${esc(p.transport_method||"No transport")}</small></div><div><strong>${p.total_quantity||0} pcs / ${fmt(p.total_meter||0)} m</strong><small>Purchased</small></div><div><strong class="amount">${money(p.grand_total)}</strong><small>Total</small></div><div class="history-actions"><button class="secondary" onclick="printPurchaseById(\'${p.id}\')">Print</button><button class="secondary danger" onclick="deletePurchase('${p.id}')">Delete</button></div></div>`).join("");}catch{historyList.innerHTML='<div class="empty-history">Could not load purchase history.</div>';}
 }
 async function viewPurchase(id){
  const r=await fetch(`/api/purchases/${id}`),p=await r.json();if(!r.ok)return toast(p.error||"Could not open purchase.");currentPurchase=p;modalTitle.textContent=`Purchase ${p.id}`;
@@ -263,7 +202,84 @@ function printPurchase(){
 
   w.document.close();
 }
+
+async function sharePurchaseHistory(){
+  try{
+    const r = await fetch("/api/purchases");
+    const purchases = await r.json();
+
+    if(!r.ok){
+      return toast("Could not load purchase history.");
+    }
+
+    if(!purchases.length){
+      return toast("No purchase history to share.");
+    }
+
+    const divider = "━━━━━━━━━━━━━━━━━━━━";
+
+    const purchaseBlocks = purchases.map((p, index) => {
+      return `*PURCHASE ${index + 1}*
+
+*Supplier / Party:* ${p.supplier_name || "—"}
+*Place:* ${p.supplier_place || "—"}
+*Purchase Date:* ${p.purchase_date || "—"}
+*Bill / Order No.:* ${p.bill_number || "—"}
+*Transport:* ${p.transport_method || "—"}
+*Ordered By:* ${p.ordered_by || "—"}
+
+*Quantity:* ${p.total_quantity || 0} pcs
+*Meter:* ${fmt(p.total_meter || 0)} m
+*Purchase Total:* ${money(p.grand_total || 0)}
+
+${divider}`;
+    }).join("\n\n");
+
+    const totalAmount = purchases.reduce(
+      (sum, p) => sum + (Number(p.grand_total) || 0), 0
+    );
+
+    const totalQty = purchases.reduce(
+      (sum, p) => sum + (Number(p.total_quantity) || 0), 0
+    );
+
+    const totalMeters = purchases.reduce(
+      (sum, p) => sum + (Number(p.total_meter) || 0), 0
+    );
+
+    const finalText =
+`*MAHARANI WEDDING COLLECTIONS*
+*PURCHASE HISTORY REPORT*
+
+${divider}
+
+${purchaseBlocks}
+
+*REPORT SUMMARY*
+
+*Total Purchases:* ${purchases.length}
+*Total Quantity:* ${fmt(totalQty)} pcs
+*Total Meter:* ${fmt(totalMeters)} m
+*Total Purchase Value:* ${money(totalAmount)}
+
+${divider}
+
+_Maharani Purchase Manager_`;
+
+    const whatsappUrl =
+      `https://wa.me/?text=${encodeURIComponent(finalText)}`;
+
+    window.open(whatsappUrl, "_blank");
+
+  }catch(error){
+    toast("Could not share purchase history.");
+  }
+}
+
 function esc(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");}
 addProductBtn.onclick=addProduct;emptyAddBtn.onclick=addProduct;saveBtn.onclick=savePurchase;clearBtn.onclick=clearForm;refreshHistoryBtn.onclick=loadHistory;printBtn.onclick=printPurchase;closeModalBtn.onclick=()=>detailModal.classList.remove("show");
 document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.querySelectorAll(".view").forEach(v=>v.classList.remove("active-view"));document.getElementById(b.dataset.view).classList.add("active-view");if(b.dataset.view==="historyView")loadHistory();});
 window.viewPurchase=viewPurchase;window.printPurchaseById=printPurchaseById;window.deletePurchase=deletePurchase;updateSummary();loadHistory();
+
+document.getElementById("shareHistoryBtn").onclick=sharePurchaseHistory;
+window.sharePurchaseHistory=sharePurchaseHistory;

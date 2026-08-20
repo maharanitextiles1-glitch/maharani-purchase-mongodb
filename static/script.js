@@ -65,12 +65,7 @@ function printPurchase(){
   const rows = (p.items || []).map((i, n) => `
     <tr>
       <td>${n + 1}</td>
-      <td>
-        ${i.image_url
-          ? `<img src="${i.image_url}" alt="Product image" class="product-photo">`
-          : `<span class="no-photo">No photo</span>`
-        }
-      </td>
+      <td>${i.image_url ? `<img src="${i.image_url}" class="product-photo" alt="Product image">` : "No photo"}</td>
       <td>${esc(i.product_name || "")}</td>
       <td>${esc(i.subcategory || "")}</td>
       <td>${esc(i.brand_name || "")}</td>
@@ -87,255 +82,86 @@ function printPurchase(){
   `).join("");
 
   const whatsappText = encodeURIComponent(
-    `Maharani Wedding Collections - Purchase Details\n` +
+    `Maharani Wedding Collections - Purchase Details\n\n` +
     `Supplier: ${p.supplier_name || "—"}\n` +
     `Place: ${p.supplier_place || "—"}\n` +
     `Purchase Date: ${p.purchase_date || "—"}\n` +
     `Bill / Order No.: ${p.bill_number || "—"}\n` +
     `Transport: ${p.transport_method || "—"}\n` +
-    `Ordered By: ${p.ordered_by || "—"}\n` +
-    `Total Quantity: ${p.total_quantity || 0} pcs\n` +
-    `Total Meter: ${fmt(p.total_meter || 0)} m\n` +
-    `Grand Total: ${money(p.grand_total || 0)}`
+    `Ordered By: ${p.ordered_by || "—"}\n\n` +
+    (p.items || []).map((i, n) =>
+      `${n + 1}. ${i.product_name || ""} | Qty ${i.quantity || 0} | Meter ${fmt(i.meter_quantity || 0)} | Purchase Rate ${money(i.purchase_price || 0)} | MRP ${money(i.mrp || 0)} | Discount ${fmt(i.discount_percent || 0)}% | Selling ${money(i.selling_price || 0)} | Total ${money(i.line_total || 0)}`
+    ).join("\n") +
+    `\n\nGrand Total: ${money(p.grand_total || 0)}`
   );
 
   w.document.write(`
     <html>
     <head>
       <meta charset="utf-8">
-      <title>Purchase ${esc(p.id || "")}</title>
+      <title>Purchase Details</title>
       <style>
         *{box-sizing:border-box}
-        body{
-          font-family:Arial,sans-serif;
-          color:#222;
-          padding:18px;
-          margin:0;
-          background:#fff;
-        }
-        .print-toolbar{
-          display:flex;
-          justify-content:flex-end;
-          gap:8px;
-          margin-bottom:14px;
-        }
-        .print-toolbar button,
-        .print-toolbar a{
-          border:0;
-          border-radius:8px;
-          padding:10px 14px;
-          font-weight:700;
-          text-decoration:none;
-          cursor:pointer;
-        }
-        .print-button{background:#8d1738;color:#fff}
-        .whatsapp-button{background:#1f9d55;color:#fff}
-        .header{
-          display:flex;
-          justify-content:space-between;
-          align-items:flex-start;
-          border-bottom:2px solid #8d1738;
-          padding-bottom:12px;
-          margin-bottom:15px;
-        }
-        h1{
-          margin:0;
-          color:#8d1738;
-          font-size:22px;
-        }
-        .subtitle{
-          margin-top:4px;
-          font-size:12px;
-          color:#666;
-        }
-        .purchase-id{
-          font-size:12px;
-          font-weight:700;
-          color:#8d1738;
-        }
-        .meta{
-          display:grid;
-          grid-template-columns:repeat(3,1fr);
-          gap:8px;
-          margin-bottom:16px;
-        }
-        .meta div{
-          border:1px solid #ddd;
-          border-radius:7px;
-          padding:8px;
-        }
-        .meta span{
-          display:block;
-          font-size:9px;
-          color:#777;
-          margin-bottom:3px;
-          text-transform:uppercase;
-          letter-spacing:.04em;
-        }
+        body{font-family:Arial,sans-serif;color:#222;padding:18px;margin:0;background:#fff}
+        .toolbar{display:flex;justify-content:flex-end;gap:8px;margin-bottom:14px}
+        .toolbar a,.toolbar button{border:0;border-radius:8px;padding:10px 14px;font-weight:700;text-decoration:none;cursor:pointer}
+        .whatsapp-btn{background:#25D366;color:#fff}
+        .print-btn{background:#8d1738;color:#fff}
+        .header{border-bottom:2px solid #8d1738;padding-bottom:12px;margin-bottom:15px}
+        h1{margin:0;color:#8d1738;font-size:22px}
+        .subtitle{margin-top:4px;font-size:12px;color:#666}
+        .meta{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+        .meta div{border:1px solid #ddd;border-radius:7px;padding:8px}
+        .meta span{display:block;font-size:9px;color:#777;margin-bottom:3px;text-transform:uppercase}
         .meta strong{font-size:11px}
-        table{
-          width:100%;
-          border-collapse:collapse;
-          table-layout:auto;
-          font-size:7.5px;
-        }
-        th,td{
-          border:1px solid #d9d9d9;
-          padding:4px;
-          vertical-align:top;
-          text-align:left;
-          word-break:break-word;
-        }
-        th{
-          background:#f6eef1;
-          color:#5d1730;
-          font-weight:700;
-        }
-        .product-photo{
-          width:48px;
-          height:48px;
-          object-fit:cover;
-          border-radius:5px;
-          display:block;
-        }
-        .no-photo{
-          color:#999;
-          font-size:7px;
-        }
-        .totals{
-          display:flex;
-          justify-content:flex-end;
-          gap:18px;
-          margin-top:14px;
-          padding-top:10px;
-          border-top:1px solid #ddd;
-          font-size:11px;
-        }
-        .grand{
-          color:#8d1738;
-          font-size:17px;
-          font-weight:700;
-        }
-        .approval{
-          margin-top:28px;
-          display:grid;
-          grid-template-columns:1fr 1fr;
-          gap:28px;
-        }
-        .approval-box{
-          border:1px solid #bbb;
-          min-height:90px;
-          border-radius:8px;
-          padding:10px;
-        }
-        .approval-title{
-          font-size:11px;
-          font-weight:700;
-          margin-bottom:42px;
-        }
-        .signature-line{
-          border-top:1px solid #777;
-          padding-top:5px;
-          font-size:9px;
-          color:#666;
-          text-align:center;
-        }
-        .footer{
-          margin-top:20px;
-          font-size:8px;
-          color:#888;
-          text-align:center;
-        }
-        @page{
-          size:A4 landscape;
-          margin:10mm;
-        }
+        table{width:100%;border-collapse:collapse;font-size:7.5px}
+        th,td{border:1px solid #d9d9d9;padding:4px;vertical-align:top;text-align:left}
+        th{background:#f6eef1;color:#5d1730}
+        .product-photo{width:48px;height:48px;object-fit:cover;border-radius:5px}
+        .totals{display:flex;justify-content:flex-end;gap:18px;margin-top:14px;padding-top:10px;border-top:1px solid #ddd;font-size:11px}
+        .grand{color:#8d1738;font-size:17px;font-weight:700}
+        .md-approval{margin-top:36px;border:1.5px solid #777;border-radius:8px;min-height:150px;padding:12px;page-break-inside:avoid}
+        .md-approval h3{margin:0;color:#8d1738;font-size:13px}
+        .approval-space{height:82px}
+        .approval-bottom{display:grid;grid-template-columns:1fr 1fr;gap:32px}
+        .approval-line{border-top:1px solid #777;padding-top:5px;font-size:9px;text-align:center;color:#666}
+        .footer{margin-top:18px;font-size:8px;color:#888;text-align:center}
+        @page{size:A4 landscape;margin:10mm}
         @media print{
           body{padding:0}
           .no-print{display:none!important}
-          .product-photo{
-            -webkit-print-color-adjust:exact;
-            print-color-adjust:exact;
-          }
         }
       </style>
     </head>
     <body>
-
-      <div class="print-toolbar no-print">
-        <a class="whatsapp-button"
-           href="https://wa.me/?text=${whatsappText}"
-           target="_blank"
-           rel="noopener noreferrer">
-          Share on WhatsApp
-        </a>
-        <button class="print-button" onclick="window.print()">Print</button>
+      <div class="toolbar no-print">
+        <a class="whatsapp-btn" href="https://wa.me/?text=${whatsappText}" target="_blank" rel="noopener noreferrer">Share on WhatsApp</a>
+        <button class="print-btn" type="button" onclick="window.print()">Print</button>
       </div>
 
       <div class="header">
-        <div>
-          <h1>Maharani Wedding Collections</h1>
-          <div class="subtitle">Purchase Details</div>
-        </div>
-        <div class="purchase-id">Purchase ID: ${esc(p.id || "—")}</div>
+        <h1>Maharani Wedding Collections</h1>
+        <div class="subtitle">Purchase Details</div>
       </div>
 
       <div class="meta">
-        <div>
-          <span>Supplier / Party Name</span>
-          <strong>${esc(p.supplier_name || "—")}</strong>
-        </div>
-        <div>
-          <span>Place</span>
-          <strong>${esc(p.supplier_place || "—")}</strong>
-        </div>
-        <div>
-          <span>Purchase Date</span>
-          <strong>${esc(p.purchase_date || "—")}</strong>
-        </div>
-        <div>
-          <span>Bill / Order No.</span>
-          <strong>${esc(p.bill_number || "—")}</strong>
-        </div>
-        <div>
-          <span>Transport</span>
-          <strong>${esc(p.transport_method || "—")}</strong>
-        </div>
-        <div>
-          <span>Ordered By</span>
-          <strong>${esc(p.ordered_by || "—")}</strong>
-        </div>
-        <div>
-          <span>Total Quantity</span>
-          <strong>${p.total_quantity || 0} pcs</strong>
-        </div>
-        <div>
-          <span>Total Meter</span>
-          <strong>${fmt(p.total_meter || 0)} m</strong>
-        </div>
-        <div>
-          <span>Grand Total</span>
-          <strong>${money(p.grand_total || 0)}</strong>
-        </div>
+        <div><span>Supplier / Party Name</span><strong>${esc(p.supplier_name || "—")}</strong></div>
+        <div><span>Place</span><strong>${esc(p.supplier_place || "—")}</strong></div>
+        <div><span>Purchase Date</span><strong>${esc(p.purchase_date || "—")}</strong></div>
+        <div><span>Bill / Order No.</span><strong>${esc(p.bill_number || "—")}</strong></div>
+        <div><span>Transport</span><strong>${esc(p.transport_method || "—")}</strong></div>
+        <div><span>Ordered By</span><strong>${esc(p.ordered_by || "—")}</strong></div>
+        <div><span>Total Quantity</span><strong>${p.total_quantity || 0} pcs</strong></div>
+        <div><span>Total Meter</span><strong>${fmt(p.total_meter || 0)} m</strong></div>
+        <div><span>Grand Total</span><strong>${money(p.grand_total || 0)}</strong></div>
       </div>
 
       <table>
         <thead>
           <tr>
-            <th>#</th>
-            <th>Photo</th>
-            <th>Product Name</th>
-            <th>Subcategory</th>
-            <th>Brand Name</th>
-            <th>Size</th>
-            <th>Quantity</th>
-            <th>Meter Qty</th>
-            <th>Purchase Rate</th>
-            <th>MRP</th>
-            <th>Discount</th>
-            <th>Selling Price</th>
-            <th>Item Total</th>
-            <th>Notes</th>
+            <th>#</th><th>Photo</th><th>Product Name</th><th>Subcategory</th><th>Brand Name</th><th>Size</th>
+            <th>Quantity</th><th>Meter Qty</th><th>Purchase Rate</th><th>MRP</th><th>Discount</th>
+            <th>Selling Price</th><th>Item Total</th><th>Notes</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -347,19 +173,16 @@ function printPurchase(){
         <div class="grand">Grand Total: ${money(p.grand_total || 0)}</div>
       </div>
 
-      <div class="approval">
-        <div class="approval-box">
-          <div class="approval-title">MD Approval</div>
-          <div class="signature-line">Signature / Approval</div>
-        </div>
-        <div class="approval-box">
-          <div class="approval-title">Remarks</div>
-          <div class="signature-line">Date</div>
+      <div class="md-approval">
+        <h3>MD Approval</h3>
+        <div class="approval-space"></div>
+        <div class="approval-bottom">
+          <div class="approval-line">MD Signature</div>
+          <div class="approval-line">Date</div>
         </div>
       </div>
 
       <div class="footer">Printed from Maharani Purchase Manager</div>
-
     </body>
     </html>
   `);

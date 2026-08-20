@@ -46,26 +46,13 @@ async function savePurchase(){
 }
 async function loadHistory(){
  historyList.innerHTML='<div class="empty-history">Loading...</div>';
- try{const r=await fetch("/api/purchases"),arr=await r.json();if(!arr.length){historyList.innerHTML='<div class="empty-history">No saved purchases yet.</div>';return;}historyList.innerHTML=arr.map(p=>`<div class="history-row"><div><strong>${esc(p.supplier_name)}</strong><small>${esc(p.supplier_place||"—")}</small></div><div><strong>${esc(p.purchase_date)}</strong><small>${esc(p.transport_method||"No transport")}</small></div><div><strong>${p.total_quantity||0} pcs / ${fmt(p.total_meter||0)} m</strong><small>Purchased</small></div><div><strong class="amount">${money(p.grand_total)}</strong><small>Total</small></div><div class="history-actions"><button class="secondary" onclick="printPurchaseById(\'${p.id}\')">Print</button><button class="secondary danger" onclick="deletePurchase('${p.id}')">Delete</button></div></div>`).join("");}catch{historyList.innerHTML='<div class="empty-history">Could not load purchase history.</div>';}
+ try{const r=await fetch("/api/purchases"),arr=await r.json();if(!arr.length){historyList.innerHTML='<div class="empty-history">No saved purchases yet.</div>';return;}historyList.innerHTML=arr.map(p=>`<div class="history-row"><div><strong>${esc(p.supplier_name)}</strong><small>${esc(p.supplier_place||"—")}</small></div><div><strong>${esc(p.purchase_date)}</strong><small>${esc(p.transport_method||"No transport")}</small></div><div><strong>${p.total_quantity||0} pcs / ${fmt(p.total_meter||0)} m</strong><small>Purchased</small></div><div><strong class="amount">${money(p.grand_total)}</strong><small>Total</small></div><div class="history-actions"><button class="secondary" onclick="viewPurchase('${p.id}')">View</button><button class="secondary danger" onclick="deletePurchase('${p.id}')">Delete</button></div></div>`).join("");}catch{historyList.innerHTML='<div class="empty-history">Could not load purchase history.</div>';}
 }
 async function viewPurchase(id){
  const r=await fetch(`/api/purchases/${id}`),p=await r.json();if(!r.ok)return toast(p.error||"Could not open purchase.");currentPurchase=p;modalTitle.textContent=`Purchase ${p.id}`;
  modalContent.innerHTML=`<div class="meta-grid"><div><span>Supplier</span><strong>${esc(p.supplier_name)}</strong></div><div><span>Place</span><strong>${esc(p.supplier_place||"—")}</strong></div><div><span>Date</span><strong>${esc(p.purchase_date)}</strong></div><div><span>Bill / Order No.</span><strong>${esc(p.bill_number||"—")}</strong></div><div><span>Transport</span><strong>${esc(p.transport_method||"—")}</strong></div><div><span>Ordered By</span><strong>${esc(p.ordered_by||"—")}</strong></div></div><div class="detail-list">${p.items.map(i=>`<div class="detail-item">${i.image_url?`<img src="${i.image_url}">`:`<div class="no-img">No image</div>`}<div><strong>${esc(i.product_name)}</strong><small>${esc(i.subcategory||"")} ${i.brand_name?"• "+esc(i.brand_name):""} ${i.size_value?"• "+esc(i.size_value):""}</small><small>Qty ${i.quantity||0} • Meter ${fmt(i.meter_quantity||0)} • Purchase ${money(i.purchase_price)}</small><small>${i.pricing_method?esc(i.pricing_method)+" "+fmt(i.pricing_percent)+"% • ":""}MRP ${money(i.mrp)} • Discount ${fmt(i.discount_percent)}% • Selling ${money(i.selling_price)}</small></div><strong>${money(i.line_total)}</strong></div>`).join("")}</div><div class="modal-total">${p.total_quantity||0} pcs • ${fmt(p.total_meter||0)} m • ${money(p.grand_total)}</div>`;
  detailModal.classList.add("show");
 }
-
-async function printPurchaseById(id){
-  const r = await fetch(`/api/purchases/${id}`);
-  const p = await r.json();
-
-  if(!r.ok){
-    return toast(p.error || "Could not open purchase.");
-  }
-
-  currentPurchase = p;
-  printPurchase();
-}
-
 async function deletePurchase(id){if(!confirm("Delete this purchase?"))return;const r=await fetch(`/api/purchases/${id}`,{method:"DELETE"});if(!r.ok)return toast("Could not delete.");toast("Purchase deleted.");loadHistory();}
 
 
@@ -205,10 +192,10 @@ function printPurchase(){
 
 async function sharePurchaseHistory(){
   try{
-    const r = await fetch("/api/purchases");
-    const purchases = await r.json();
+    const response = await fetch("/api/purchases");
+    const purchases = await response.json();
 
-    if(!r.ok){
+    if(!response.ok){
       return toast("Could not load purchase history.");
     }
 
@@ -216,62 +203,93 @@ async function sharePurchaseHistory(){
       return toast("No purchase history to share.");
     }
 
-    const divider = "━━━━━━━━━━━━━━━━━━━━";
+    const divider = "━━━━━━━━━━━━━━━━━━━━━━";
 
-    const purchaseBlocks = purchases.map((p, index) => {
+    const purchaseDetails = purchases.map((p, index) => {
       return `*PURCHASE ${index + 1}*
 
-*Supplier / Party:* ${p.supplier_name || "—"}
-*Place:* ${p.supplier_place || "—"}
-*Purchase Date:* ${p.purchase_date || "—"}
-*Bill / Order No.:* ${p.bill_number || "—"}
-*Transport:* ${p.transport_method || "—"}
-*Ordered By:* ${p.ordered_by || "—"}
+*Supplier / Party*
+${p.supplier_name || "—"}
 
-*Quantity:* ${p.total_quantity || 0} pcs
-*Meter:* ${fmt(p.total_meter || 0)} m
-*Purchase Total:* ${money(p.grand_total || 0)}
+*Place*
+${p.supplier_place || "—"}
+
+*Purchase Date*
+${p.purchase_date || "—"}
+
+*Bill / Order No.*
+${p.bill_number || "—"}
+
+*Transport*
+${p.transport_method || "—"}
+
+*Ordered By*
+${p.ordered_by || "—"}
+
+*Quantity*
+${p.total_quantity || 0} pcs
+
+*Meter*
+${fmt(p.total_meter || 0)} m
+
+*Purchase Total*
+${money(p.grand_total || 0)}
 
 ${divider}`;
     }).join("\n\n");
 
+    const totalPurchases = purchases.length;
+
+    const totalQuantity = purchases.reduce(
+      (total, p) => total + (Number(p.total_quantity) || 0),
+      0
+    );
+
+    const totalMeter = purchases.reduce(
+      (total, p) => total + (Number(p.total_meter) || 0),
+      0
+    );
+
     const totalAmount = purchases.reduce(
-      (sum, p) => sum + (Number(p.grand_total) || 0), 0
+      (total, p) => total + (Number(p.grand_total) || 0),
+      0
     );
 
-    const totalQty = purchases.reduce(
-      (sum, p) => sum + (Number(p.total_quantity) || 0), 0
-    );
-
-    const totalMeters = purchases.reduce(
-      (sum, p) => sum + (Number(p.total_meter) || 0), 0
-    );
-
-    const finalText =
+    const whatsappMessage =
 `*MAHARANI WEDDING COLLECTIONS*
+
 *PURCHASE HISTORY REPORT*
 
 ${divider}
 
-${purchaseBlocks}
+${purchaseDetails}
 
-*REPORT SUMMARY*
+*PURCHASE SUMMARY*
 
-*Total Purchases:* ${purchases.length}
-*Total Quantity:* ${fmt(totalQty)} pcs
-*Total Meter:* ${fmt(totalMeters)} m
-*Total Purchase Value:* ${money(totalAmount)}
+*Total Purchases*
+${totalPurchases}
+
+*Total Quantity*
+${fmt(totalQuantity)} pcs
+
+*Total Meter*
+${fmt(totalMeter)} m
+
+*Total Purchase Value*
+${money(totalAmount)}
 
 ${divider}
 
 _Maharani Purchase Manager_`;
 
-    const whatsappUrl =
-      `https://wa.me/?text=${encodeURIComponent(finalText)}`;
+    const whatsappURL =
+      "https://wa.me/?text=" +
+      encodeURIComponent(whatsappMessage);
 
-    window.open(whatsappUrl, "_blank");
+    window.open(whatsappURL, "_blank");
 
   }catch(error){
+    console.error(error);
     toast("Could not share purchase history.");
   }
 }
@@ -279,7 +297,8 @@ _Maharani Purchase Manager_`;
 function esc(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");}
 addProductBtn.onclick=addProduct;emptyAddBtn.onclick=addProduct;saveBtn.onclick=savePurchase;clearBtn.onclick=clearForm;refreshHistoryBtn.onclick=loadHistory;printBtn.onclick=printPurchase;closeModalBtn.onclick=()=>detailModal.classList.remove("show");
 document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.querySelectorAll(".view").forEach(v=>v.classList.remove("active-view"));document.getElementById(b.dataset.view).classList.add("active-view");if(b.dataset.view==="historyView")loadHistory();});
-window.viewPurchase=viewPurchase;window.printPurchaseById=printPurchaseById;window.deletePurchase=deletePurchase;updateSummary();loadHistory();
+window.viewPurchase=viewPurchase;window.deletePurchase=deletePurchase;updateSummary();loadHistory();
 
-document.getElementById("shareHistoryBtn").onclick=sharePurchaseHistory;
+const shareHistoryBtn=document.getElementById("shareHistoryBtn");
+if(shareHistoryBtn) shareHistoryBtn.addEventListener("click", sharePurchaseHistory);
 window.sharePurchaseHistory=sharePurchaseHistory;

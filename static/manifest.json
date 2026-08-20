@@ -1,0 +1,8 @@
+{
+  "name": "Maharani Purchase Manager",
+  "short_name": "Maharani Purchase",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f4f5",
+  "theme_color": "#8d1738"
+}

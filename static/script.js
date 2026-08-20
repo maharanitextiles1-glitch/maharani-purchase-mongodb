@@ -15,22 +15,182 @@ function calcPricing(card){
  const d=Number(card.querySelector(".discount").value)||0;card.querySelector(".selling-price").textContent=money(mrp>0?mrp*(1-d/100):0);
 }
 function updateCard(card){const q=Number(card.querySelector(".qty").value)||0,m=Number(card.querySelector(".meter").value)||0,p=Number(card.querySelector(".price").value)||0;card.querySelector(".line-total").textContent=money((q>0?q:m)*p);calcPricing(card);updateSummary();}
-function addProduct(){
- const node=template.content.cloneNode(true),card=node.querySelector(".product-card");
- ["qty","meter","price","pricing-percent","discount"].forEach(c=>node.querySelector("."+c).addEventListener("input",()=>updateCard(card)));
- node.querySelector(".pricing-method").addEventListener("change",()=>updateCard(card));
- const mrp=node.querySelector(".mrp");mrp.addEventListener("input",()=>{mrp.dataset.manual=mrp.value?"true":"false";updateCard(card);});
- node.querySelector(".delete-btn").onclick=()=>{card.remove();updateSummary();};
- const up=node.querySelector(".upload-input"),cam=node.querySelector(".camera-input");
- node.querySelector(".upload-btn").onclick=()=>up.click();node.querySelector(".camera-btn").onclick=()=>cam.click();
- up.onchange=()=>{if(up.files?.[0]){cam.value="";preview(card,up.files[0]);}};
- cam.onchange=()=>{if(cam.files?.[0]){up.value="";preview(card,cam.files[0]);}};
- productList.appendChild(node);updateSummary();
+
+function createProductCard(data = {}, file = null){
+  const node=template.content.cloneNode(true);
+  const card=node.querySelector(".product-card");
+
+  card.querySelector(".product-name").value=data.name||"";
+  card.querySelector(".subcategory").value=data.subcategory||"";
+  card.querySelector(".brand-name").value=data.brandName||"";
+  card.querySelector(".size-value").value=data.sizeValue||"";
+  card.querySelector(".qty").value=data.quantity||"";
+  card.querySelector(".meter").value=data.meterQuantity||"";
+  card.querySelector(".price").value=data.purchasePrice||"";
+  card.querySelector(".pricing-method").value=data.pricingMethod||"";
+  card.querySelector(".pricing-percent").value=data.pricingPercent||"";
+  card.querySelector(".mrp").value=data.mrp||"";
+  card.querySelector(".discount").value=data.discountPercent||"";
+  card.querySelector(".notes").value=data.notes||"";
+
+  ["qty","meter","price","pricing-percent","discount"].forEach(c=>{
+    card.querySelector("."+c).addEventListener("input",()=>updateCard(card));
+  });
+
+  card.querySelector(".pricing-method").addEventListener("change",()=>updateCard(card));
+
+  const mrp=card.querySelector(".mrp");
+  if(data.mrp) mrp.dataset.manual="true";
+  mrp.addEventListener("input",()=>{
+    mrp.dataset.manual=mrp.value?"true":"false";
+    updateCard(card);
+  });
+
+  card.querySelector(".delete-btn").onclick=()=>{
+    card.remove();
+    updateSummary();
+  };
+
+  const up=card.querySelector(".upload-input");
+  const cam=card.querySelector(".camera-input");
+
+  card.querySelector(".upload-btn").onclick=()=>up.click();
+  card.querySelector(".camera-btn").onclick=()=>cam.click();
+
+  up.onchange=()=>{
+    if(up.files?.[0]){
+      cam.value="";
+      preview(card,up.files[0]);
+    }
+  };
+
+  cam.onchange=()=>{
+    if(cam.files?.[0]){
+      up.value="";
+      preview(card,cam.files[0]);
+    }
+  };
+
+  if(file){
+    const dt=new DataTransfer();
+    dt.items.add(file);
+    up.files=dt.files;
+    preview(card,file);
+  }
+
+  productList.appendChild(node);
+  updateCard(card);
+  updateSummary();
 }
+
+let modalSelectedFile = null;
+let modalMrpManual = false;
+
+function resetProductModal(){
+  [
+    "modalProductName","modalSubcategory","modalBrandName","modalSizeValue",
+    "modalQty","modalMeter","modalPrice","modalPricingPercent","modalMrp",
+    "modalDiscount","modalNotes"
+  ].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.value="";
+  });
+
+  document.getElementById("modalPricingMethod").value="";
+  document.getElementById("modalLineTotal").textContent=money(0);
+  document.getElementById("modalSellingPrice").textContent=money(0);
+
+  const previewImg=document.getElementById("modalPreview");
+  const placeholder=document.getElementById("modalPhotoPlaceholder");
+  previewImg.src="";
+  previewImg.style.display="none";
+  placeholder.style.display="grid";
+
+  document.getElementById("modalUploadInput").value="";
+  document.getElementById("modalCameraInput").value="";
+  modalSelectedFile=null;
+  modalMrpManual=false;
+}
+
+function updateProductModalCalculations(){
+  const qty=Number(document.getElementById("modalQty").value)||0;
+  const meter=Number(document.getElementById("modalMeter").value)||0;
+  const price=Number(document.getElementById("modalPrice").value)||0;
+  const method=document.getElementById("modalPricingMethod").value;
+  const pct=Number(document.getElementById("modalPricingPercent").value)||0;
+  const mrpInput=document.getElementById("modalMrp");
+
+  let mrp=Number(mrpInput.value)||0;
+
+  if(!modalMrpManual){
+    if(price>0 && pct>0){
+      if(method==="markup") mrp=price*(1+pct/100);
+      else if(method==="margin" && pct<100) mrp=price/(1-pct/100);
+      else if(method==="markdown") mrp=price*(1-pct/100);
+
+      if(mrp>0) mrpInput.value=mrp.toFixed(2);
+    }
+  }
+
+  const discount=Number(document.getElementById("modalDiscount").value)||0;
+  const units=qty>0?qty:meter;
+  const lineTotal=units*price;
+  const selling=mrp>0?mrp*(1-discount/100):0;
+
+  document.getElementById("modalLineTotal").textContent=money(lineTotal);
+  document.getElementById("modalSellingPrice").textContent=money(selling);
+}
+
+function openProductModal(){
+  resetProductModal();
+  document.getElementById("productModal").classList.add("show");
+  setTimeout(()=>document.getElementById("modalProductName").focus(),50);
+}
+
+function closeProductModal(){
+  document.getElementById("productModal").classList.remove("show");
+}
+
+function addProduct(){
+  openProductModal();
+}
+
+function saveProductFromModal(){
+  const name=document.getElementById("modalProductName").value.trim();
+  const quantity=Number(document.getElementById("modalQty").value)||0;
+  const meterQuantity=Number(document.getElementById("modalMeter").value)||0;
+
+  if(!name) return toast("Enter product name.");
+  if(quantity<=0 && meterQuantity<=0){
+    return toast("Enter quantity or meter quantity.");
+  }
+
+  const data={
+    name,
+    subcategory:document.getElementById("modalSubcategory").value.trim(),
+    brandName:document.getElementById("modalBrandName").value.trim(),
+    sizeValue:document.getElementById("modalSizeValue").value.trim(),
+    quantity,
+    meterQuantity,
+    purchasePrice:Number(document.getElementById("modalPrice").value)||0,
+    pricingMethod:document.getElementById("modalPricingMethod").value,
+    pricingPercent:Number(document.getElementById("modalPricingPercent").value)||0,
+    mrp:Number(document.getElementById("modalMrp").value)||0,
+    discountPercent:Number(document.getElementById("modalDiscount").value)||0,
+    notes:document.getElementById("modalNotes").value.trim()
+  };
+
+  createProductCard(data,modalSelectedFile);
+  closeProductModal();
+  toast("Product added.");
+}
+
 function updateSummary(){
  const cards=[...document.querySelectorAll(".product-card")];let q=0,m=0,t=0;
  cards.forEach(c=>{const a=Number(c.querySelector(".qty").value)||0,b=Number(c.querySelector(".meter").value)||0,p=Number(c.querySelector(".price").value)||0;q+=a;m+=b;t+=(a>0?a:b)*p;});
  productCount.textContent=cards.length;totalQuantity.textContent=q;totalMeter.textContent=`${fmt(m)} m`;grandTotal.textContent=money(t);bottomQty.textContent=q;bottomMeter.textContent=`${fmt(m)} m`;bottomGrandTotal.textContent=money(t);emptyState.style.display=cards.length?"none":"block";
+  const addAnotherWrap=document.getElementById("addAnotherWrap");
+  if(addAnotherWrap) addAnotherWrap.style.display=cards.length?"block":"none";
 }
 function clearForm(){productList.innerHTML="";["supplierName","supplierPlace","billNumber","orderedBy"].forEach(id=>document.getElementById(id).value="");transportMethod.value="";purchaseDate.valueAsDate=new Date();updateSummary();}
 async function savePurchase(){
@@ -302,3 +462,54 @@ window.viewPurchase=viewPurchase;window.deletePurchase=deletePurchase;updateSumm
 const shareHistoryBtn=document.getElementById("shareHistoryBtn");
 if(shareHistoryBtn) shareHistoryBtn.addEventListener("click", sharePurchaseHistory);
 window.sharePurchaseHistory=sharePurchaseHistory;
+
+
+const productModal=document.getElementById("productModal");
+const modalUploadInput=document.getElementById("modalUploadInput");
+const modalCameraInput=document.getElementById("modalCameraInput");
+
+document.getElementById("addAnotherProductBtn")?.addEventListener("click",openProductModal);
+document.getElementById("closeProductModalBtn")?.addEventListener("click",closeProductModal);
+document.getElementById("cancelProductModalBtn")?.addEventListener("click",closeProductModal);
+document.getElementById("saveProductModalBtn")?.addEventListener("click",saveProductFromModal);
+document.getElementById("modalUploadBtn")?.addEventListener("click",()=>modalUploadInput.click());
+document.getElementById("modalCameraBtn")?.addEventListener("click",()=>modalCameraInput.click());
+
+modalUploadInput?.addEventListener("change",()=>{
+  if(modalUploadInput.files?.[0]){
+    modalCameraInput.value="";
+    modalSelectedFile=modalUploadInput.files[0];
+    const img=document.getElementById("modalPreview");
+    img.src=URL.createObjectURL(modalSelectedFile);
+    img.style.display="block";
+    document.getElementById("modalPhotoPlaceholder").style.display="none";
+  }
+});
+
+modalCameraInput?.addEventListener("change",()=>{
+  if(modalCameraInput.files?.[0]){
+    modalUploadInput.value="";
+    modalSelectedFile=modalCameraInput.files[0];
+    const img=document.getElementById("modalPreview");
+    img.src=URL.createObjectURL(modalSelectedFile);
+    img.style.display="block";
+    document.getElementById("modalPhotoPlaceholder").style.display="none";
+  }
+});
+
+[
+  "modalQty","modalMeter","modalPrice","modalPricingPercent","modalDiscount"
+].forEach(id=>{
+  document.getElementById(id)?.addEventListener("input",updateProductModalCalculations);
+});
+
+document.getElementById("modalPricingMethod")?.addEventListener("change",updateProductModalCalculations);
+
+document.getElementById("modalMrp")?.addEventListener("input",()=>{
+  modalMrpManual=document.getElementById("modalMrp").value!=="";
+  updateProductModalCalculations();
+});
+
+productModal?.addEventListener("click",e=>{
+  if(e.target===productModal) closeProductModal();
+});

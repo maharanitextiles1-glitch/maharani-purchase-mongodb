@@ -45,6 +45,9 @@
 <div class="section-head"><div><p class="eyebrow">Items</p><h2>Purchased Products</h2></div><button class="primary" id="addProductBtn">+ Add Product</button></div>
 <div id="emptyState" class="empty-state"><h3>No products added</h3><p>Add image, quantity or meter, price and product details.</p><button class="primary" id="emptyAddBtn">Add First Product</button></div>
 <div id="productList"></div>
+      <div class="add-another-wrap" id="addAnotherWrap" style="display:none;">
+        <button type="button" class="primary" id="addAnotherProductBtn">+ Add Another Product</button>
+      </div>
 </section>
 
 <section class="card total-card">
@@ -95,6 +98,94 @@
   </div>
 </article>
 </template>
+
+
+<div class="modal product-entry-modal" id="productModal">
+  <div class="modal-card product-modal-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Same Purchase</p>
+        <h2 id="productModalTitle">Add Product</h2>
+      </div>
+      <button class="secondary" type="button" id="closeProductModalBtn">Close</button>
+    </div>
+
+    <div class="product-modal-body">
+      <div class="modal-photo-row">
+        <div class="photo-box modal-photo-box">
+          <img id="modalPreview" class="preview" alt="Product preview">
+          <div id="modalPhotoPlaceholder" class="photo-placeholder">Product Photo</div>
+        </div>
+
+        <div class="photo-buttons modal-photo-buttons">
+          <input id="modalUploadInput" type="file" accept="image/*" hidden>
+          <input id="modalCameraInput" type="file" accept="image/*" capture="environment" hidden>
+          <button type="button" class="secondary" id="modalUploadBtn">Upload Photo</button>
+          <button type="button" class="secondary" id="modalCameraBtn">Take Photo</button>
+        </div>
+      </div>
+
+      <div class="grid three">
+        <label>Product Name
+          <input id="modalProductName" placeholder="Eg. Saree">
+        </label>
+        <label>Subcategory
+          <input id="modalSubcategory" placeholder="Eg. Semi Silk">
+        </label>
+        <label>Brand Name
+          <input id="modalBrandName" placeholder="Brand">
+        </label>
+      </div>
+
+      <div class="grid four">
+        <label>Size
+          <input id="modalSizeValue" placeholder="M / 38 / Free Size">
+        </label>
+        <label>Quantity (Pieces)
+          <input id="modalQty" type="number" min="0" step="1" placeholder="0">
+        </label>
+        <label>Meter Quantity
+          <input id="modalMeter" type="number" min="0" step="0.01" placeholder="0">
+        </label>
+        <label>Purchase Price
+          <input id="modalPrice" type="number" min="0" step="0.01" placeholder="0">
+        </label>
+
+        <label>Pricing Method
+          <select id="modalPricingMethod">
+            <option value="">None</option>
+            <option value="markup">Markup %</option>
+            <option value="margin">Margin %</option>
+            <option value="markdown">Markdown %</option>
+          </select>
+        </label>
+        <label>Markup / Margin / Markdown %
+          <input id="modalPricingPercent" type="number" min="0" step="0.01" placeholder="0">
+        </label>
+        <label>MRP
+          <input id="modalMrp" type="number" min="0" step="0.01" placeholder="0">
+        </label>
+        <label>Discount % <span class="optional">Optional</span>
+          <input id="modalDiscount" type="number" min="0" max="100" step="0.01" placeholder="0">
+        </label>
+      </div>
+
+      <div class="calc-row">
+        <div><span>Purchase Total</span><strong id="modalLineTotal">₹0</strong></div>
+        <div><span>Selling Price</span><strong id="modalSellingPrice">₹0</strong></div>
+      </div>
+
+      <label>Notes
+        <input id="modalNotes" placeholder="Optional note">
+      </label>
+    </div>
+
+    <div class="product-modal-actions">
+      <button class="secondary" type="button" id="cancelProductModalBtn">Cancel</button>
+      <button class="primary" type="button" id="saveProductModalBtn">Add Product</button>
+    </div>
+  </div>
+</div>
 
 <div class="modal" id="detailModal"><div class="modal-card">
 <div class="section-head"><div><p class="eyebrow">Purchase Details</p><h2 id="modalTitle">Purchase</h2></div><div class="modal-actions"><button class="secondary" id="printBtn">Print</button><button class="secondary" id="closeModalBtn">Close</button></div></div>

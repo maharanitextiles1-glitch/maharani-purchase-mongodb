@@ -1,0 +1,102 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#8d1738">
+<link rel="manifest" href="/manifest.json">
+<title>Maharani Purchase Manager</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><div class="logo">M</div><div><h1>Maharani Purchase Manager</h1><p>Purchase entry & history</p></div></div>
+  <div class="nav">
+    <button class="nav-btn active" data-view="entryView">New Purchase</button>
+    <button class="nav-btn" data-view="historyView">Purchase History</button>
+  </div>
+</header>
+
+<main class="container">
+<section id="entryView" class="view active-view">
+<div class="summary">
+  <div><span>Products</span><strong id="productCount">0</strong></div>
+  <div><span>Total Quantity</span><strong id="totalQuantity">0</strong></div>
+  <div><span>Total Meter</span><strong id="totalMeter">0 m</strong></div>
+  <div class="accent"><span>Purchase Total</span><strong id="grandTotal">₹0</strong></div>
+</div>
+
+<section class="card">
+<div class="section-head"><div><p class="eyebrow">Purchase Details</p><h2>New Purchase</h2></div><span class="pill">Draft</span></div>
+<div class="grid purchase-grid">
+<label>Supplier / Party Name<input id="supplierName" placeholder="Enter supplier name"></label>
+<label>Place<input id="supplierPlace" placeholder="Eg. Chennai"></label>
+<label>Purchase Date<input type="date" id="purchaseDate"></label>
+<label>Bill / Order No.<input id="billNumber" placeholder="Optional"></label>
+<label>Transport<select id="transportMethod">
+<option value="">Select</option><option>By Hand</option><option>DTDC</option><option>Professional Courier</option><option>Bus</option><option>Train</option><option>Own Vehicle</option><option>Other</option>
+</select></label>
+<label>Ordered By<input id="orderedBy" placeholder="Enter staff / person name"></label>
+</div>
+</section>
+
+<section class="card">
+<div class="section-head"><div><p class="eyebrow">Items</p><h2>Purchased Products</h2></div><button class="primary" id="addProductBtn">+ Add Product</button></div>
+<div id="emptyState" class="empty-state"><h3>No products added</h3><p>Add image, quantity or meter, price and product details.</p><button class="primary" id="emptyAddBtn">Add First Product</button></div>
+<div id="productList"></div>
+</section>
+
+<section class="card total-card">
+<div><p class="eyebrow">Purchase Summary</p><h2>Grand Total</h2><p class="mini">Pieces: <b id="bottomQty">0</b> &nbsp; Meter: <b id="bottomMeter">0 m</b></p></div>
+<div class="grand" id="bottomGrandTotal">₹0</div>
+</section>
+
+<div class="actions"><button class="secondary" id="clearBtn">Clear</button><button class="primary" id="saveBtn">Save Purchase to Database</button></div>
+</section>
+
+<section id="historyView" class="view">
+<section class="card">
+<div class="section-head"><div><p class="eyebrow">Database</p><h2>Purchase History</h2></div><button class="secondary" id="refreshHistoryBtn">Refresh</button></div>
+<div id="historyList"></div>
+</section>
+</section>
+</main>
+
+<template id="productTemplate">
+<article class="product-card">
+  <div class="photo-col">
+    <div class="photo-box"><img class="preview"><div class="photo-placeholder">Product Photo</div></div>
+    <input class="upload-input" type="file" accept="image/*" hidden>
+    <input class="camera-input" type="file" accept="image/*" capture="environment" hidden>
+    <div class="photo-buttons"><button type="button" class="secondary upload-btn">Upload</button><button type="button" class="secondary camera-btn">Take Photo</button></div>
+  </div>
+  <div class="product-fields">
+    <div class="row-top"><div class="grid three">
+      <label>Product Name<input class="product-name" placeholder="Eg. Saree"></label>
+      <label>Subcategory<input class="subcategory" placeholder="Eg. Semi Silk"></label>
+      <label>Brand Name<input class="brand-name" placeholder="Brand"></label>
+    </div><button class="delete-btn" type="button">×</button></div>
+    <div class="grid four">
+      <label>Size<input class="size-value" placeholder="M / 38 / Free Size"></label>
+      <label>Quantity (Pieces)<input class="qty" type="number" min="0" step="1" placeholder="0"></label>
+      <label>Meter Quantity<input class="meter" type="number" min="0" step="0.01" placeholder="0"></label>
+      <label>Purchase Price<input class="price" type="number" min="0" step="0.01" placeholder="0"></label>
+      <label>Pricing Method<select class="pricing-method"><option value="">None</option><option value="markup">Markup %</option><option value="margin">Margin %</option><option value="markdown">Markdown %</option></select></label>
+      <label>Markup / Margin / Markdown %<input class="pricing-percent" type="number" min="0" step="0.01" placeholder="0"></label>
+      <label>MRP<input class="mrp" type="number" min="0" step="0.01" placeholder="0"></label>
+      <label>Discount % <span class="optional">Optional</span><input class="discount" type="number" min="0" max="100" step="0.01" placeholder="0"></label>
+    </div>
+    <div class="calc-row"><div><span>Purchase Total</span><strong class="line-total">₹0</strong></div><div><span>Selling Price</span><strong class="selling-price">₹0</strong></div></div>
+    <label>Notes<input class="notes" placeholder="Optional note"></label>
+  </div>
+</article>
+</template>
+
+<div class="modal" id="detailModal"><div class="modal-card">
+<div class="section-head"><div><p class="eyebrow">Purchase Details</p><h2 id="modalTitle">Purchase</h2></div><div class="modal-actions"><button class="secondary" id="printBtn">Print</button><button class="secondary" id="closeModalBtn">Close</button></div></div>
+<div id="modalContent"></div>
+</div></div>
+
+<script src="/static/script.js"></script>
+</body></html>

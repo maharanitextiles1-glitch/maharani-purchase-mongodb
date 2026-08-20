@@ -55,6 +55,7 @@ async function viewPurchase(id){
 }
 async function deletePurchase(id){if(!confirm("Delete this purchase?"))return;const r=await fetch(`/api/purchases/${id}`,{method:"DELETE"});if(!r.ok)return toast("Could not delete.");toast("Purchase deleted.");loadHistory();}
 
+
 function printPurchase(){
   if(!currentPurchase) return toast("Open a purchase first.");
 
@@ -77,12 +78,6 @@ function printPurchase(){
       <td>${i.quantity || 0}</td>
       <td>${fmt(i.meter_quantity || 0)} m</td>
       <td>${money(i.purchase_price || 0)}</td>
-      <td>
-        ${i.pricing_method
-          ? `${esc(i.pricing_method)} ${fmt(i.pricing_percent || 0)}%`
-          : "—"
-        }
-      </td>
       <td>${money(i.mrp || 0)}</td>
       <td>${fmt(i.discount_percent || 0)}%</td>
       <td>${money(i.selling_price || 0)}</td>
@@ -90,6 +85,19 @@ function printPurchase(){
       <td>${esc(i.notes || "")}</td>
     </tr>
   `).join("");
+
+  const whatsappText = encodeURIComponent(
+    `Maharani Wedding Collections - Purchase Details\n` +
+    `Supplier: ${p.supplier_name || "—"}\n` +
+    `Place: ${p.supplier_place || "—"}\n` +
+    `Purchase Date: ${p.purchase_date || "—"}\n` +
+    `Bill / Order No.: ${p.bill_number || "—"}\n` +
+    `Transport: ${p.transport_method || "—"}\n` +
+    `Ordered By: ${p.ordered_by || "—"}\n` +
+    `Total Quantity: ${p.total_quantity || 0} pcs\n` +
+    `Total Meter: ${fmt(p.total_meter || 0)} m\n` +
+    `Grand Total: ${money(p.grand_total || 0)}`
+  );
 
   w.document.write(`
     <html>
@@ -105,6 +113,23 @@ function printPurchase(){
           margin:0;
           background:#fff;
         }
+        .print-toolbar{
+          display:flex;
+          justify-content:flex-end;
+          gap:8px;
+          margin-bottom:14px;
+        }
+        .print-toolbar button,
+        .print-toolbar a{
+          border:0;
+          border-radius:8px;
+          padding:10px 14px;
+          font-weight:700;
+          text-decoration:none;
+          cursor:pointer;
+        }
+        .print-button{background:#8d1738;color:#fff}
+        .whatsapp-button{background:#1f9d55;color:#fff}
         .header{
           display:flex;
           justify-content:space-between;
@@ -147,9 +172,7 @@ function printPurchase(){
           text-transform:uppercase;
           letter-spacing:.04em;
         }
-        .meta strong{
-          font-size:11px;
-        }
+        .meta strong{font-size:11px}
         table{
           width:100%;
           border-collapse:collapse;
@@ -193,6 +216,30 @@ function printPurchase(){
           font-size:17px;
           font-weight:700;
         }
+        .approval{
+          margin-top:28px;
+          display:grid;
+          grid-template-columns:1fr 1fr;
+          gap:28px;
+        }
+        .approval-box{
+          border:1px solid #bbb;
+          min-height:90px;
+          border-radius:8px;
+          padding:10px;
+        }
+        .approval-title{
+          font-size:11px;
+          font-weight:700;
+          margin-bottom:42px;
+        }
+        .signature-line{
+          border-top:1px solid #777;
+          padding-top:5px;
+          font-size:9px;
+          color:#666;
+          text-align:center;
+        }
         .footer{
           margin-top:20px;
           font-size:8px;
@@ -205,6 +252,7 @@ function printPurchase(){
         }
         @media print{
           body{padding:0}
+          .no-print{display:none!important}
           .product-photo{
             -webkit-print-color-adjust:exact;
             print-color-adjust:exact;
@@ -213,6 +261,16 @@ function printPurchase(){
       </style>
     </head>
     <body>
+
+      <div class="print-toolbar no-print">
+        <a class="whatsapp-button"
+           href="https://wa.me/?text=${whatsappText}"
+           target="_blank"
+           rel="noopener noreferrer">
+          Share on WhatsApp
+        </a>
+        <button class="print-button" onclick="window.print()">Print</button>
+      </div>
 
       <div class="header">
         <div>
@@ -272,8 +330,7 @@ function printPurchase(){
             <th>Size</th>
             <th>Quantity</th>
             <th>Meter Qty</th>
-            <th>Purchase Price</th>
-            <th>Pricing Method / %</th>
+            <th>Purchase Rate</th>
             <th>MRP</th>
             <th>Discount</th>
             <th>Selling Price</th>
@@ -281,9 +338,7 @@ function printPurchase(){
             <th>Notes</th>
           </tr>
         </thead>
-        <tbody>
-          ${rows}
-        </tbody>
+        <tbody>${rows}</tbody>
       </table>
 
       <div class="totals">
@@ -292,20 +347,25 @@ function printPurchase(){
         <div class="grand">Grand Total: ${money(p.grand_total || 0)}</div>
       </div>
 
+      <div class="approval">
+        <div class="approval-box">
+          <div class="approval-title">MD Approval</div>
+          <div class="signature-line">Signature / Approval</div>
+        </div>
+        <div class="approval-box">
+          <div class="approval-title">Remarks</div>
+          <div class="signature-line">Date</div>
+        </div>
+      </div>
+
       <div class="footer">Printed from Maharani Purchase Manager</div>
 
-      <script>
-        window.onload = () => {
-          setTimeout(() => window.print(), 350);
-        };
-      <\/script>
     </body>
     </html>
   `);
 
   w.document.close();
 }
-
 function esc(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");}
 addProductBtn.onclick=addProduct;emptyAddBtn.onclick=addProduct;saveBtn.onclick=savePurchase;clearBtn.onclick=clearForm;refreshHistoryBtn.onclick=loadHistory;printBtn.onclick=printPurchase;closeModalBtn.onclick=()=>detailModal.classList.remove("show");
 document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.querySelectorAll(".view").forEach(v=>v.classList.remove("active-view"));document.getElementById(b.dataset.view).classList.add("active-view");if(b.dataset.view==="historyView")loadHistory();});

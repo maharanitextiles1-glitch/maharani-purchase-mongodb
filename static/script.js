@@ -16,7 +16,7 @@ function calcPricing(card){
  const discountType=card.querySelector(".discount-type")?.value||"percentage";
  let selling=0;
  if(mrp>0){
-   selling=discountType==="rupees"?Math.max(mrp-d,0):mrp*(1-d/100);
+   selling=discountType==="rupees" ? Math.max(mrp-d,0) : mrp*(1-d/100);
  }
  card.querySelector(".selling-price").textContent=money(selling);
 }
@@ -147,7 +147,7 @@ function updateProductModalCalculations(){
   const lineTotal=units*price;
   let selling=0;
   if(mrp>0){
-    selling=discountType==="rupees"?Math.max(mrp-discount,0):mrp*(1-discount/100);
+    selling=discountType==="rupees" ? Math.max(mrp-discount,0) : mrp*(1-discount/100);
   }
 
   document.getElementById("modalLineTotal").textContent=money(lineTotal);
@@ -249,7 +249,7 @@ function printPurchase(){
       <td>${fmt(i.meter_quantity || 0)} m</td>
       <td>${money(i.purchase_price || 0)}</td>
       <td>${money(i.mrp || 0)}</td>
-      <td>${i.discount_type==="rupees" ? money(i.discount_value || 0) : fmt(i.discount_value ?? i.discount_percent ?? 0) + "%"}</td>
+      <td>${fmt(i.discount_percent || 0)}%</td>
       <td>${money(i.selling_price || 0)}</td>
       <td>${money(i.line_total || 0)}</td>
       <td>${esc(i.notes || "")}</td>
@@ -265,7 +265,7 @@ function printPurchase(){
     `Transport: ${p.transport_method || "—"}\n` +
     `Ordered By: ${p.ordered_by || "—"}\n\n` +
     (p.items || []).map((i, n) =>
-      `${n + 1}. ${i.product_name || ""} | Qty ${i.quantity || 0} | Meter ${fmt(i.meter_quantity || 0)} | Purchase Rate ${money(i.purchase_price || 0)} | MRP ${money(i.mrp || 0)} | Discount ${i.discount_type==="rupees" ? money(i.discount_value || 0) : fmt(i.discount_value ?? i.discount_percent ?? 0) + "%"} | Selling ${money(i.selling_price || 0)} | Total ${money(i.line_total || 0)}`
+      `${n + 1}. ${i.product_name || ""} | Qty ${i.quantity || 0} | Meter ${fmt(i.meter_quantity || 0)} | Purchase Rate ${money(i.purchase_price || 0)} | MRP ${money(i.mrp || 0)} | Discount ${fmt(i.discount_percent || 0)}% | Selling ${money(i.selling_price || 0)} | Total ${money(i.line_total || 0)}`
     ).join("\n") +
     `\n\nGrand Total: ${money(p.grand_total || 0)}`
   );

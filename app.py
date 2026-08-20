@@ -152,10 +152,7 @@ def create_purchase():
             elif method=="markdown": mrp = price*(1-pct/100)
 
         if mrp > 0:
-            if discount_type == "rupees":
-                selling = max(mrp - disc, 0)
-            else:
-                selling = mrp * (1 - disc/100)
+            selling = max(mrp - disc, 0) if discount_type == "rupees" else mrp*(1-disc/100)
         else:
             selling = 0
         units = qty if qty>0 else meter

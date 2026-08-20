@@ -42,21 +42,71 @@ async function savePurchase(){
  const fd=new FormData();fd.append("supplier_name",supplier);fd.append("supplier_place",supplierPlace.value.trim());fd.append("purchase_date",date);fd.append("bill_number",billNumber.value.trim());fd.append("transport_method",transportMethod.value);fd.append("ordered_by",orderedBy.value.trim());fd.append("items",JSON.stringify(items));
  cards.forEach((c,i)=>{const up=c.querySelector(".upload-input").files?.[0],cam=c.querySelector(".camera-input").files?.[0];if(up)fd.append(`image_${i}`,up);else if(cam)fd.append(`camera_${i}`,cam);});
  saveBtn.disabled=true;saveBtn.textContent="Saving...";
- try{const r=await fetch("/api/purchases",{method:"POST",body:fd}),d=await r.json();if(!r.ok)throw new Error(d.error||"Could not save purchase.");toast("Purchase saved.");clearForm();loadHistory();}catch(e){toast(e.message);}finally{saveBtn.disabled=false;saveBtn.textContent="Save Purchase to Database";}
+ try{const r=await fetch("/api/purchases",{method:"POST",body:fd}),d=await r.json();if(!r.ok)throw new Error(d.error||"Could not save purchase.");toast("DP saved.");clearForm();loadHistory();}catch(e){toast(e.message);}finally{saveBtn.disabled=false;saveBtn.textContent="Save DP to Database";}
 }
 async function loadHistory(){
- historyList.innerHTML='<div class="empty-history">Loading...</div>';
- try{const r=await fetch("/api/purchases"),arr=await r.json();if(!arr.length){historyList.innerHTML='<div class="empty-history">No saved purchases yet.</div>';return;}historyList.innerHTML=arr.map(p=>`<div class="history-row"><div><strong>${esc(p.supplier_name)}</strong><small>${esc(p.supplier_place||"—")}</small></div><div><strong>${esc(p.purchase_date)}</strong><small>${esc(p.transport_method||"No transport")}</small></div><div><strong>${p.total_quantity||0} pcs / ${fmt(p.total_meter||0)} m</strong><small>Purchased</small></div><div><strong class="amount">${money(p.grand_total)}</strong><small>Total</small></div><div class="history-actions"><button class="secondary" onclick="viewPurchase('${p.id}')">View</button><button class="secondary danger" onclick="deletePurchase('${p.id}')">Delete</button></div></div>`).join("");}catch{historyList.innerHTML='<div class="empty-history">Could not load purchase history.</div>';}
+  historyList.innerHTML='<div class="empty-history">Loading...</div>';
+  const params=new URLSearchParams();
+  const search=document.getElementById("historySearch")?.value.trim();
+  const purchaser=document.getElementById("historyPurchaser")?.value.trim();
+  const dateFrom=document.getElementById("historyDateFrom")?.value;
+  const dateTo=document.getElementById("historyDateTo")?.value;
+  if(search) params.set("search",search);
+  if(purchaser) params.set("purchaser",purchaser);
+  if(dateFrom) params.set("date_from",dateFrom);
+  if(dateTo) params.set("date_to",dateTo);
+  try{
+    const r=await fetch(`/api/purchases${params.toString()?"?"+params.toString():""}`),arr=await r.json();
+    if(!arr.length){historyList.innerHTML='<div class="empty-history">No DP records found.</div>';return;}
+    historyList.innerHTML=arr.map(p=>`<div class="history-row"><div><strong>${esc(p.supplier_name)}</strong><small>${esc(p.supplier_place||"—")}</small></div><div><strong>${esc(p.purchase_date)}</strong><small>${esc(p.ordered_by||"No purchaser")}</small></div><div><strong>${p.total_quantity||0} pcs / ${fmt(p.total_meter||0)} m</strong><small>DP Qty</small></div><div><strong class="amount">${money(p.grand_total)}</strong><small>DP Total</small></div><div class="history-actions"><button class="secondary" onclick="viewPurchase('${p.id}')">View</button><button class="secondary" onclick="sharePurchase('${p.id}')">Share</button><button class="secondary danger" onclick="deletePurchase('${p.id}')">Delete</button></div></div>`).join("");
+  }catch{historyList.innerHTML='<div class="empty-history">Could not load DP history.</div>';}
 }
 async function viewPurchase(id){
  const r=await fetch(`/api/purchases/${id}`),p=await r.json();if(!r.ok)return toast(p.error||"Could not open purchase.");currentPurchase=p;modalTitle.textContent=`Purchase ${p.id}`;
  modalContent.innerHTML=`<div class="meta-grid"><div><span>Supplier</span><strong>${esc(p.supplier_name)}</strong></div><div><span>Place</span><strong>${esc(p.supplier_place||"—")}</strong></div><div><span>Date</span><strong>${esc(p.purchase_date)}</strong></div><div><span>Bill / Order No.</span><strong>${esc(p.bill_number||"—")}</strong></div><div><span>Transport</span><strong>${esc(p.transport_method||"—")}</strong></div><div><span>Ordered By</span><strong>${esc(p.ordered_by||"—")}</strong></div></div><div class="detail-list">${p.items.map(i=>`<div class="detail-item">${i.image_url?`<img src="${i.image_url}">`:`<div class="no-img">No image</div>`}<div><strong>${esc(i.product_name)}</strong><small>${esc(i.subcategory||"")} ${i.brand_name?"• "+esc(i.brand_name):""} ${i.size_value?"• "+esc(i.size_value):""}</small><small>Qty ${i.quantity||0} • Meter ${fmt(i.meter_quantity||0)} • Purchase ${money(i.purchase_price)}</small><small>${i.pricing_method?esc(i.pricing_method)+" "+fmt(i.pricing_percent)+"% • ":""}MRP ${money(i.mrp)} • Discount ${fmt(i.discount_percent)}% • Selling ${money(i.selling_price)}</small></div><strong>${money(i.line_total)}</strong></div>`).join("")}</div><div class="modal-total">${p.total_quantity||0} pcs • ${fmt(p.total_meter||0)} m • ${money(p.grand_total)}</div>`;
  detailModal.classList.add("show");
 }
-async function deletePurchase(id){if(!confirm("Delete this purchase?"))return;const r=await fetch(`/api/purchases/${id}`,{method:"DELETE"});if(!r.ok)return toast("Could not delete.");toast("Purchase deleted.");loadHistory();}
-function printPurchase(){if(!currentPurchase)return;const p=currentPurchase,w=window.open("","_blank"),rows=p.items.map((i,n)=>`<tr><td>${n+1}</td><td>${esc(i.product_name)}</td><td>${esc(i.subcategory||"")}</td><td>${esc(i.brand_name||"")}</td><td>${esc(i.size_value||"")}</td><td>${i.quantity||0}</td><td>${fmt(i.meter_quantity||0)}</td><td>${money(i.purchase_price)}</td><td>${money(i.mrp)}</td><td>${fmt(i.discount_percent)}%</td><td>${money(i.selling_price)}</td><td>${money(i.line_total)}</td></tr>`).join("");
- w.document.write(`<html><head><title>Purchase</title><style>body{font-family:Arial;padding:20px}h1{color:#8d1738}table{width:100%;border-collapse:collapse;font-size:10px}th,td{border:1px solid #ddd;padding:5px}.total{text-align:right;font-size:18px;font-weight:bold;color:#8d1738;margin-top:15px}</style></head><body><h1>Maharani Wedding Collections</h1><p>Supplier: ${esc(p.supplier_name)} | Place: ${esc(p.supplier_place||"—")} | Date: ${esc(p.purchase_date)} | Transport: ${esc(p.transport_method||"—")} | Ordered By: ${esc(p.ordered_by||"—")}</p><table><tr><th>#</th><th>Product</th><th>Subcategory</th><th>Brand</th><th>Size</th><th>Qty</th><th>Meter</th><th>Purchase</th><th>MRP</th><th>Disc.</th><th>Selling</th><th>Total</th></tr>${rows}</table><div class="total">Grand Total ${money(p.grand_total)}</div><script>window.onload=()=>window.print();<\/script></body></html>`);w.document.close();}
+async function deletePurchase(id){if(!confirm("Delete this purchase?"))return;const r=await fetch(`/api/purchases/${id}`,{method:"DELETE"});if(!r.ok)return toast("Could not delete.");toast("DP deleted.");loadHistory();}
+function printPurchase(){
+  if(!currentPurchase)return toast("Open a DP first.");
+  const p=currentPurchase,w=window.open("","_blank");
+  const rows=p.items.map((i,n)=>`<tr>
+    <td>${n+1}</td>
+    <td>${i.image_url?`<img src="${i.image_url}" style="width:55px;height:55px;object-fit:cover;border-radius:6px">`:""}</td>
+    <td>${esc(i.product_name)}</td><td>${esc(i.subcategory||"")}</td><td>${esc(i.brand_name||"")}</td><td>${esc(i.size_value||"")}</td>
+    <td>${i.quantity||0}</td><td>${fmt(i.meter_quantity||0)}</td><td>${money(i.purchase_price)}</td>
+    <td>${i.pricing_method?esc(i.pricing_method)+" "+fmt(i.pricing_percent)+"%":"—"}</td><td>${money(i.mrp)}</td><td>${fmt(i.discount_percent)}%</td>
+    <td>${money(i.selling_price)}</td><td>${money(i.line_total)}</td><td>${esc(i.notes||"")}</td>
+  </tr>`).join("");
+  w.document.write(`<html><head><title>DP ${esc(p.id)}</title><style>
+  body{font-family:Arial,sans-serif;padding:18px;color:#222}h1{margin:0;color:#8d1738;font-size:22px}.sub{font-size:12px;color:#666;margin-top:4px}
+  .meta{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0}.meta div{border:1px solid #ddd;padding:8px;border-radius:7px}.meta span{display:block;font-size:10px;color:#777;margin-bottom:3px}
+  table{width:100%;border-collapse:collapse;font-size:8px}th,td{border:1px solid #ddd;padding:4px;text-align:left;vertical-align:top}th{background:#f6eef1}.total{text-align:right;font-size:18px;font-weight:700;color:#8d1738;margin-top:14px}@media print{body{padding:0}}
+  </style></head><body><h1>Maharani Wedding Collections</h1><div class="sub">DP Record</div>
+  <div class="meta"><div><span>Supplier / Party</span><b>${esc(p.supplier_name)}</b></div><div><span>Place</span><b>${esc(p.supplier_place||"—")}</b></div><div><span>DP Date</span><b>${esc(p.purchase_date)}</b></div><div><span>Bill / Order No.</span><b>${esc(p.bill_number||"—")}</b></div><div><span>Transport</span><b>${esc(p.transport_method||"—")}</b></div><div><span>Ordered By</span><b>${esc(p.ordered_by||"—")}</b></div><div><span>Total Quantity</span><b>${p.total_quantity||0} pcs</b></div><div><span>Total Meter</span><b>${fmt(p.total_meter||0)} m</b></div><div><span>DP Total</span><b>${money(p.grand_total)}</b></div></div>
+  <table><thead><tr><th>#</th><th>Photo</th><th>Product</th><th>Subcategory</th><th>Brand</th><th>Size</th><th>Qty</th><th>Meter</th><th>Purchase Price</th><th>Markup/Margin/Markdown</th><th>MRP</th><th>Discount</th><th>Selling Price</th><th>Item Total</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table>
+  <div class="total">DP Total: ${money(p.grand_total)}</div><script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script></body></html>`);w.document.close();
+}
+
+async function sharePurchase(id){
+  const r=await fetch(`/api/purchases/${id}`),p=await r.json();
+  if(!r.ok)return toast(p.error||"Could not open DP.");
+  const itemText=(p.items||[]).map((i,n)=>`${n+1}. ${i.product_name} | Qty ${i.quantity||0} | Meter ${fmt(i.meter_quantity||0)} | MRP ${money(i.mrp)} | Total ${money(i.line_total)}`).join("\\n");
+  const text=`Maharani DP\\nSupplier: ${p.supplier_name}\\nPlace: ${p.supplier_place||"—"}\\nDate: ${p.purchase_date}\\nOrdered By: ${p.ordered_by||"—"}\\nTransport: ${p.transport_method||"—"}\\n\\n${itemText}\\n\\nDP Total: ${money(p.grand_total)}`;
+  if(navigator.share){try{await navigator.share({title:"Maharani DP",text});}catch(e){}}
+  else{window.prompt("Copy and share this DP:",text);}
+}
+
 function esc(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");}
 addProductBtn.onclick=addProduct;emptyAddBtn.onclick=addProduct;saveBtn.onclick=savePurchase;clearBtn.onclick=clearForm;refreshHistoryBtn.onclick=loadHistory;printBtn.onclick=printPurchase;closeModalBtn.onclick=()=>detailModal.classList.remove("show");
 document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.querySelectorAll(".view").forEach(v=>v.classList.remove("active-view"));document.getElementById(b.dataset.view).classList.add("active-view");if(b.dataset.view==="historyView")loadHistory();});
-window.viewPurchase=viewPurchase;window.deletePurchase=deletePurchase;updateSummary();loadHistory();
+window.viewPurchase=viewPurchase;window.deletePurchase=deletePurchase;
+document.getElementById("applyHistoryFilters")?.addEventListener("click",loadHistory);
+document.getElementById("clearHistoryFilters")?.addEventListener("click",()=>{
+  ["historySearch","historyPurchaser","historyDateFrom","historyDateTo"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
+  loadHistory();
+});
+["historySearch","historyPurchaser"].forEach(id=>document.getElementById(id)?.addEventListener("keydown",e=>{if(e.key==="Enter")loadHistory();}));
+document.getElementById("shareCurrentBtn")?.addEventListener("click",()=>{if(currentPurchase)sharePurchase(currentPurchase.id);});
+window.sharePurchase=sharePurchase;
+updateSummary();loadHistory();

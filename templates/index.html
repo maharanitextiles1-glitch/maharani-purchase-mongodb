@@ -6,15 +6,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#8d1738">
 <link rel="manifest" href="/manifest.json">
-<title>Maharani Purchase Manager</title>
+<title>Maharani DP Manager</title>
 <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><div class="logo">M</div><div><h1>Maharani Purchase Manager</h1><p>Purchase entry & history</p></div></div>
+  <div class="brand"><div class="logo">M</div><div><h1>Maharani DP Manager</h1><p>DP entry & history</p></div></div>
   <div class="nav">
-    <button class="nav-btn active" data-view="entryView">New Purchase</button>
-    <button class="nav-btn" data-view="historyView">Purchase History</button>
+    <button class="nav-btn active" data-view="entryView">New DP</button>
+    <button class="nav-btn" data-view="historyView">DP History</button>
   </div>
 </header>
 
@@ -24,15 +24,15 @@
   <div><span>Products</span><strong id="productCount">0</strong></div>
   <div><span>Total Quantity</span><strong id="totalQuantity">0</strong></div>
   <div><span>Total Meter</span><strong id="totalMeter">0 m</strong></div>
-  <div class="accent"><span>Purchase Total</span><strong id="grandTotal">₹0</strong></div>
+  <div class="accent"><span>DP Total</span><strong id="grandTotal">₹0</strong></div>
 </div>
 
 <section class="card">
-<div class="section-head"><div><p class="eyebrow">Purchase Details</p><h2>New Purchase</h2></div><span class="pill">Draft</span></div>
+<div class="section-head"><div><p class="eyebrow">DP Details</p><h2>New DP</h2></div><span class="pill">Draft</span></div>
 <div class="grid purchase-grid">
 <label>Supplier / Party Name<input id="supplierName" placeholder="Enter supplier name"></label>
 <label>Place<input id="supplierPlace" placeholder="Eg. Chennai"></label>
-<label>Purchase Date<input type="date" id="purchaseDate"></label>
+<label>DP Date<input type="date" id="purchaseDate"></label>
 <label>Bill / Order No.<input id="billNumber" placeholder="Optional"></label>
 <label>Transport<select id="transportMethod">
 <option value="">Select</option><option>By Hand</option><option>DTDC</option><option>Professional Courier</option><option>Bus</option><option>Train</option><option>Own Vehicle</option><option>Other</option>
@@ -42,22 +42,38 @@
 </section>
 
 <section class="card">
-<div class="section-head"><div><p class="eyebrow">Items</p><h2>Purchased Products</h2></div><button class="primary" id="addProductBtn">+ Add Product</button></div>
+<div class="section-head"><div><p class="eyebrow">Items</p><h2>DP Products</h2></div><button class="primary" id="addProductBtn">+ Add Product</button></div>
 <div id="emptyState" class="empty-state"><h3>No products added</h3><p>Add image, quantity or meter, price and product details.</p><button class="primary" id="emptyAddBtn">Add First Product</button></div>
 <div id="productList"></div>
 </section>
 
 <section class="card total-card">
-<div><p class="eyebrow">Purchase Summary</p><h2>Grand Total</h2><p class="mini">Pieces: <b id="bottomQty">0</b> &nbsp; Meter: <b id="bottomMeter">0 m</b></p></div>
+<div><p class="eyebrow">DP Summary</p><h2>Grand Total</h2><p class="mini">Pieces: <b id="bottomQty">0</b> &nbsp; Meter: <b id="bottomMeter">0 m</b></p></div>
 <div class="grand" id="bottomGrandTotal">₹0</div>
 </section>
 
-<div class="actions"><button class="secondary" id="clearBtn">Clear</button><button class="primary" id="saveBtn">Save Purchase to Database</button></div>
+<div class="actions"><button class="secondary" id="clearBtn">Clear</button><button class="primary" id="saveBtn">Save DP to Database</button></div>
 </section>
 
 <section id="historyView" class="view">
 <section class="card">
-<div class="section-head"><div><p class="eyebrow">Database</p><h2>Purchase History</h2></div><button class="secondary" id="refreshHistoryBtn">Refresh</button></div>
+<div class="section-head"><div><p class="eyebrow">Database</p><h2>DP History</h2></div><button class="secondary" id="refreshHistoryBtn">Refresh</button></div>
+<div class="history-filters">
+  <label>Search
+    <input id="historySearch" placeholder="Supplier, bill no., product, brand...">
+  </label>
+  <label>Purchaser / Ordered By
+    <input id="historyPurchaser" placeholder="Search purchaser">
+  </label>
+  <label>From Date
+    <input type="date" id="historyDateFrom">
+  </label>
+  <label>To Date
+    <input type="date" id="historyDateTo">
+  </label>
+  <button type="button" class="primary" id="applyHistoryFilters">Search</button>
+  <button type="button" class="secondary" id="clearHistoryFilters">Clear</button>
+</div>
 <div id="historyList"></div>
 </section>
 </section>
@@ -87,14 +103,14 @@
       <label>MRP<input class="mrp" type="number" min="0" step="0.01" placeholder="0"></label>
       <label>Discount % <span class="optional">Optional</span><input class="discount" type="number" min="0" max="100" step="0.01" placeholder="0"></label>
     </div>
-    <div class="calc-row"><div><span>Purchase Total</span><strong class="line-total">₹0</strong></div><div><span>Selling Price</span><strong class="selling-price">₹0</strong></div></div>
+    <div class="calc-row"><div><span>DP Total</span><strong class="line-total">₹0</strong></div><div><span>Selling Price</span><strong class="selling-price">₹0</strong></div></div>
     <label>Notes<input class="notes" placeholder="Optional note"></label>
   </div>
 </article>
 </template>
 
 <div class="modal" id="detailModal"><div class="modal-card">
-<div class="section-head"><div><p class="eyebrow">Purchase Details</p><h2 id="modalTitle">Purchase</h2></div><div class="modal-actions"><button class="secondary" id="printBtn">Print</button><button class="secondary" id="closeModalBtn">Close</button></div></div>
+<div class="section-head"><div><p class="eyebrow">DP Details</p><h2 id="modalTitle">Purchase</h2></div><div class="modal-actions"><button class="secondary" id="shareCurrentBtn">Share</button><button class="secondary" id="printBtn">Print</button><button class="secondary" id="closeModalBtn">Close</button></div></div>
 <div id="modalContent"></div>
 </div></div>
 

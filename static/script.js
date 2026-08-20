@@ -54,8 +54,258 @@ async function viewPurchase(id){
  detailModal.classList.add("show");
 }
 async function deletePurchase(id){if(!confirm("Delete this purchase?"))return;const r=await fetch(`/api/purchases/${id}`,{method:"DELETE"});if(!r.ok)return toast("Could not delete.");toast("Purchase deleted.");loadHistory();}
-function printPurchase(){if(!currentPurchase)return;const p=currentPurchase,w=window.open("","_blank"),rows=p.items.map((i,n)=>`<tr><td>${n+1}</td><td>${esc(i.product_name)}</td><td>${esc(i.subcategory||"")}</td><td>${esc(i.brand_name||"")}</td><td>${esc(i.size_value||"")}</td><td>${i.quantity||0}</td><td>${fmt(i.meter_quantity||0)}</td><td>${money(i.purchase_price)}</td><td>${money(i.mrp)}</td><td>${fmt(i.discount_percent)}%</td><td>${money(i.selling_price)}</td><td>${money(i.line_total)}</td></tr>`).join("");
- w.document.write(`<html><head><title>Purchase</title><style>body{font-family:Arial;padding:20px}h1{color:#8d1738}table{width:100%;border-collapse:collapse;font-size:10px}th,td{border:1px solid #ddd;padding:5px}.total{text-align:right;font-size:18px;font-weight:bold;color:#8d1738;margin-top:15px}</style></head><body><h1>Maharani Wedding Collections</h1><p>Supplier: ${esc(p.supplier_name)} | Place: ${esc(p.supplier_place||"—")} | Date: ${esc(p.purchase_date)} | Transport: ${esc(p.transport_method||"—")} | Ordered By: ${esc(p.ordered_by||"—")}</p><table><tr><th>#</th><th>Product</th><th>Subcategory</th><th>Brand</th><th>Size</th><th>Qty</th><th>Meter</th><th>Purchase</th><th>MRP</th><th>Disc.</th><th>Selling</th><th>Total</th></tr>${rows}</table><div class="total">Grand Total ${money(p.grand_total)}</div><script>window.onload=()=>window.print();<\/script></body></html>`);w.document.close();}
+
+function printPurchase(){
+  if(!currentPurchase) return toast("Open a purchase first.");
+
+  const p = currentPurchase;
+  const w = window.open("", "_blank");
+
+  const rows = (p.items || []).map((i, n) => `
+    <tr>
+      <td>${n + 1}</td>
+      <td>
+        ${i.image_url
+          ? `<img src="${i.image_url}" alt="Product image" class="product-photo">`
+          : `<span class="no-photo">No photo</span>`
+        }
+      </td>
+      <td>${esc(i.product_name || "")}</td>
+      <td>${esc(i.subcategory || "")}</td>
+      <td>${esc(i.brand_name || "")}</td>
+      <td>${esc(i.size_value || "")}</td>
+      <td>${i.quantity || 0}</td>
+      <td>${fmt(i.meter_quantity || 0)} m</td>
+      <td>${money(i.purchase_price || 0)}</td>
+      <td>
+        ${i.pricing_method
+          ? `${esc(i.pricing_method)} ${fmt(i.pricing_percent || 0)}%`
+          : "—"
+        }
+      </td>
+      <td>${money(i.mrp || 0)}</td>
+      <td>${fmt(i.discount_percent || 0)}%</td>
+      <td>${money(i.selling_price || 0)}</td>
+      <td>${money(i.line_total || 0)}</td>
+      <td>${esc(i.notes || "")}</td>
+    </tr>
+  `).join("");
+
+  w.document.write(`
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Purchase ${esc(p.id || "")}</title>
+      <style>
+        *{box-sizing:border-box}
+        body{
+          font-family:Arial,sans-serif;
+          color:#222;
+          padding:18px;
+          margin:0;
+          background:#fff;
+        }
+        .header{
+          display:flex;
+          justify-content:space-between;
+          align-items:flex-start;
+          border-bottom:2px solid #8d1738;
+          padding-bottom:12px;
+          margin-bottom:15px;
+        }
+        h1{
+          margin:0;
+          color:#8d1738;
+          font-size:22px;
+        }
+        .subtitle{
+          margin-top:4px;
+          font-size:12px;
+          color:#666;
+        }
+        .purchase-id{
+          font-size:12px;
+          font-weight:700;
+          color:#8d1738;
+        }
+        .meta{
+          display:grid;
+          grid-template-columns:repeat(3,1fr);
+          gap:8px;
+          margin-bottom:16px;
+        }
+        .meta div{
+          border:1px solid #ddd;
+          border-radius:7px;
+          padding:8px;
+        }
+        .meta span{
+          display:block;
+          font-size:9px;
+          color:#777;
+          margin-bottom:3px;
+          text-transform:uppercase;
+          letter-spacing:.04em;
+        }
+        .meta strong{
+          font-size:11px;
+        }
+        table{
+          width:100%;
+          border-collapse:collapse;
+          table-layout:auto;
+          font-size:7.5px;
+        }
+        th,td{
+          border:1px solid #d9d9d9;
+          padding:4px;
+          vertical-align:top;
+          text-align:left;
+          word-break:break-word;
+        }
+        th{
+          background:#f6eef1;
+          color:#5d1730;
+          font-weight:700;
+        }
+        .product-photo{
+          width:48px;
+          height:48px;
+          object-fit:cover;
+          border-radius:5px;
+          display:block;
+        }
+        .no-photo{
+          color:#999;
+          font-size:7px;
+        }
+        .totals{
+          display:flex;
+          justify-content:flex-end;
+          gap:18px;
+          margin-top:14px;
+          padding-top:10px;
+          border-top:1px solid #ddd;
+          font-size:11px;
+        }
+        .grand{
+          color:#8d1738;
+          font-size:17px;
+          font-weight:700;
+        }
+        .footer{
+          margin-top:20px;
+          font-size:8px;
+          color:#888;
+          text-align:center;
+        }
+        @page{
+          size:A4 landscape;
+          margin:10mm;
+        }
+        @media print{
+          body{padding:0}
+          .product-photo{
+            -webkit-print-color-adjust:exact;
+            print-color-adjust:exact;
+          }
+        }
+      </style>
+    </head>
+    <body>
+
+      <div class="header">
+        <div>
+          <h1>Maharani Wedding Collections</h1>
+          <div class="subtitle">Purchase Details</div>
+        </div>
+        <div class="purchase-id">Purchase ID: ${esc(p.id || "—")}</div>
+      </div>
+
+      <div class="meta">
+        <div>
+          <span>Supplier / Party Name</span>
+          <strong>${esc(p.supplier_name || "—")}</strong>
+        </div>
+        <div>
+          <span>Place</span>
+          <strong>${esc(p.supplier_place || "—")}</strong>
+        </div>
+        <div>
+          <span>Purchase Date</span>
+          <strong>${esc(p.purchase_date || "—")}</strong>
+        </div>
+        <div>
+          <span>Bill / Order No.</span>
+          <strong>${esc(p.bill_number || "—")}</strong>
+        </div>
+        <div>
+          <span>Transport</span>
+          <strong>${esc(p.transport_method || "—")}</strong>
+        </div>
+        <div>
+          <span>Ordered By</span>
+          <strong>${esc(p.ordered_by || "—")}</strong>
+        </div>
+        <div>
+          <span>Total Quantity</span>
+          <strong>${p.total_quantity || 0} pcs</strong>
+        </div>
+        <div>
+          <span>Total Meter</span>
+          <strong>${fmt(p.total_meter || 0)} m</strong>
+        </div>
+        <div>
+          <span>Grand Total</span>
+          <strong>${money(p.grand_total || 0)}</strong>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Photo</th>
+            <th>Product Name</th>
+            <th>Subcategory</th>
+            <th>Brand Name</th>
+            <th>Size</th>
+            <th>Quantity</th>
+            <th>Meter Qty</th>
+            <th>Purchase Price</th>
+            <th>Pricing Method / %</th>
+            <th>MRP</th>
+            <th>Discount</th>
+            <th>Selling Price</th>
+            <th>Item Total</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+
+      <div class="totals">
+        <div><strong>Total Quantity:</strong> ${p.total_quantity || 0} pcs</div>
+        <div><strong>Total Meter:</strong> ${fmt(p.total_meter || 0)} m</div>
+        <div class="grand">Grand Total: ${money(p.grand_total || 0)}</div>
+      </div>
+
+      <div class="footer">Printed from Maharani Purchase Manager</div>
+
+      <script>
+        window.onload = () => {
+          setTimeout(() => window.print(), 350);
+        };
+      <\/script>
+    </body>
+    </html>
+  `);
+
+  w.document.close();
+}
+
 function esc(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");}
 addProductBtn.onclick=addProduct;emptyAddBtn.onclick=addProduct;saveBtn.onclick=savePurchase;clearBtn.onclick=clearForm;refreshHistoryBtn.onclick=loadHistory;printBtn.onclick=printPurchase;closeModalBtn.onclick=()=>detailModal.classList.remove("show");
 document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.querySelectorAll(".view").forEach(v=>v.classList.remove("active-view"));document.getElementById(b.dataset.view).classList.add("active-view");if(b.dataset.view==="historyView")loadHistory();});

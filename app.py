@@ -88,54 +88,8 @@ def product_image(file_id):
 
 @app.route("/api/purchases", methods=["GET"])
 def list_purchases():
-    if db is None:
-        return jsonify([])
-
-    query = {}
-    search = request.args.get("search", "").strip()
-    purchaser = request.args.get("purchaser", "").strip()
-    date_from = request.args.get("date_from", "").strip()
-    date_to = request.args.get("date_to", "").strip()
-
-    if purchaser:
-        query["ordered_by"] = {"$regex": purchaser, "$options": "i"}
-
-    if date_from or date_to:
-        date_query = {}
-        if date_from:
-            date_query["$gte"] = date_from
-        if date_to:
-            date_query["$lte"] = date_to
-        query["purchase_date"] = date_query
-
-    if search:
-        item_purchase_ids = [
-            x["purchase_id"]
-            for x in db.purchase_items.find(
-                {
-                    "$or": [
-                        {"product_name": {"$regex": search, "$options": "i"}},
-                        {"brand_name": {"$regex": search, "$options": "i"}},
-                        {"subcategory": {"$regex": search, "$options": "i"}},
-                        {"size_value": {"$regex": search, "$options": "i"}},
-                    ]
-                },
-                {"purchase_id": 1}
-            )
-        ]
-
-        search_or = [
-            {"supplier_name": {"$regex": search, "$options": "i"}},
-            {"supplier_place": {"$regex": search, "$options": "i"}},
-            {"bill_number": {"$regex": search, "$options": "i"}},
-            {"transport_method": {"$regex": search, "$options": "i"}},
-            {"ordered_by": {"$regex": search, "$options": "i"}},
-        ]
-        if item_purchase_ids:
-            search_or.append({"_id": {"$in": item_purchase_ids}})
-        query["$or"] = search_or
-
-    docs = list(db.purchases.find(query).sort("created_at", DESCENDING))
+    if db is None: return jsonify([])
+    docs = list(db.purchases.find().sort("created_at", DESCENDING))
     return jsonify([serialize_purchase(x) for x in docs])
 
 @app.route("/api/purchases/<purchase_id>", methods=["GET"])

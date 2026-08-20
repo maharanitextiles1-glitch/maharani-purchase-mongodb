@@ -91,7 +91,15 @@
       <label>Pricing Method<select class="pricing-method"><option value="">None</option><option value="markup">Markup %</option><option value="margin">Margin %</option><option value="markdown">Markdown %</option></select></label>
       <label>Markup / Margin / Markdown %<input class="pricing-percent" type="number" min="0" step="0.01" placeholder="0"></label>
       <label>MRP<input class="mrp" type="number" min="0" step="0.01" placeholder="0"></label>
-      <label>Discount % <span class="optional">Optional</span><input class="discount" type="number" min="0" max="100" step="0.01" placeholder="0"></label>
+      <label>Discount Type
+        <select class="discount-type">
+          <option value="percentage">Percentage (%)</option>
+          <option value="rupees">Rupees (₹)</option>
+        </select>
+      </label>
+      <label>Discount <span class="optional">Optional</span>
+        <input class="discount" type="number" min="0" step="0.01" placeholder="0">
+      </label>
     </div>
     <div class="calc-row"><div><span>Purchase Total</span><strong class="line-total">₹0</strong></div><div><span>Selling Price</span><strong class="selling-price">₹0</strong></div></div>
     <label>Notes<input class="notes" placeholder="Optional note"></label>
@@ -165,8 +173,14 @@
         <label>MRP
           <input id="modalMrp" type="number" min="0" step="0.01" placeholder="0">
         </label>
-        <label>Discount % <span class="optional">Optional</span>
-          <input id="modalDiscount" type="number" min="0" max="100" step="0.01" placeholder="0">
+        <label>Discount Type
+          <select id="modalDiscountType">
+            <option value="percentage">Percentage (%)</option>
+            <option value="rupees">Rupees (₹)</option>
+          </select>
+        </label>
+        <label>Discount <span class="optional">Optional</span>
+          <input id="modalDiscount" type="number" min="0" step="0.01" placeholder="0">
         </label>
       </div>
 

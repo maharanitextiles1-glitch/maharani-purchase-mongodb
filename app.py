@@ -136,18 +136,28 @@ def create_purchase():
         method = str(item.get("pricingMethod","")).strip()
         pct = float(item.get("pricingPercent",0) or 0)
         mrp = float(item.get("mrp",0) or 0)
-        disc = float(item.get("discountPercent",0) or 0)
+        discount_type = str(item.get("discountType","percentage") or "percentage").strip()
+        disc = float(item.get("discountValue", item.get("discountPercent",0)) or 0)
 
         if not name: return jsonify({"error":f"Product name missing for item {index+1}"}),400
         if qty<=0 and meter<=0: return jsonify({"error":f"Enter quantity or meter quantity for {name}"}),400
-        if disc<0 or disc>100: return jsonify({"error":f"Discount must be between 0 and 100 for {name}"}),400
+        if disc < 0:
+            return jsonify({"error":f"Discount cannot be negative for {name}"}),400
+        if discount_type == "percentage" and disc > 100:
+            return jsonify({"error":f"Discount percentage must be between 0 and 100 for {name}"}),400
 
         if mrp<=0 and price>0 and pct>0:
             if method=="markup": mrp = price*(1+pct/100)
             elif method=="margin" and pct<100: mrp = price/(1-pct/100)
             elif method=="markdown": mrp = price*(1-pct/100)
 
-        selling = mrp*(1-disc/100) if mrp>0 else 0
+        if mrp > 0:
+            if discount_type == "rupees":
+                selling = max(mrp - disc, 0)
+            else:
+                selling = mrp * (1 - disc/100)
+        else:
+            selling = 0
         units = qty if qty>0 else meter
         line_total = units*price
 
@@ -171,7 +181,9 @@ def create_purchase():
             "pricing_method":method,
             "pricing_percent":pct,
             "mrp":mrp,
-            "discount_percent":disc,
+            "discount_type":discount_type,
+            "discount_value":disc,
+            "discount_percent":disc if discount_type == "percentage" else 0,
             "selling_price":selling,
             "line_total":line_total,
             "notes":str(item.get("notes","")).strip(),

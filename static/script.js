@@ -12,7 +12,13 @@ function preview(card,file){if(!file)return;const img=card.querySelector(".previ
 function calcPricing(card){
  const cost=Number(card.querySelector(".price").value)||0,method=card.querySelector(".pricing-method").value,pct=Number(card.querySelector(".pricing-percent").value)||0,mrpInput=card.querySelector(".mrp");let mrp=Number(mrpInput.value)||0;
  if(!mrpInput.dataset.manual||mrpInput.dataset.manual==="false"){if(cost>0&&pct>0){if(method==="markup")mrp=cost*(1+pct/100);else if(method==="margin"&&pct<100)mrp=cost/(1-pct/100);else if(method==="markdown")mrp=cost*(1-pct/100);if(mrp>0)mrpInput.value=mrp.toFixed(2);}}
- const d=Number(card.querySelector(".discount").value)||0;card.querySelector(".selling-price").textContent=money(mrp>0?mrp*(1-d/100):0);
+ const d=Number(card.querySelector(".discount").value)||0;
+ const discountType=card.querySelector(".discount-type")?.value||"percentage";
+ let selling=0;
+ if(mrp>0){
+   selling=discountType==="rupees"?Math.max(mrp-d,0):mrp*(1-d/100);
+ }
+ card.querySelector(".selling-price").textContent=money(selling);
 }
 function updateCard(card){const q=Number(card.querySelector(".qty").value)||0,m=Number(card.querySelector(".meter").value)||0,p=Number(card.querySelector(".price").value)||0;card.querySelector(".line-total").textContent=money((q>0?q:m)*p);calcPricing(card);updateSummary();}
 
@@ -30,7 +36,8 @@ function createProductCard(data = {}, file = null){
   card.querySelector(".pricing-method").value=data.pricingMethod||"";
   card.querySelector(".pricing-percent").value=data.pricingPercent||"";
   card.querySelector(".mrp").value=data.mrp||"";
-  card.querySelector(".discount").value=data.discountPercent||"";
+  card.querySelector(".discount-type").value=data.discountType||"percentage";
+  card.querySelector(".discount").value=(data.discountValue ?? data.discountPercent ?? "");
   card.querySelector(".notes").value=data.notes||"";
 
   ["qty","meter","price","pricing-percent","discount"].forEach(c=>{
@@ -38,6 +45,7 @@ function createProductCard(data = {}, file = null){
   });
 
   card.querySelector(".pricing-method").addEventListener("change",()=>updateCard(card));
+  card.querySelector(".discount-type")?.addEventListener("change",()=>updateCard(card));
 
   const mrp=card.querySelector(".mrp");
   if(data.mrp) mrp.dataset.manual="true";
@@ -97,6 +105,7 @@ function resetProductModal(){
   });
 
   document.getElementById("modalPricingMethod").value="";
+  document.getElementById("modalDiscountType").value="percentage";
   document.getElementById("modalLineTotal").textContent=money(0);
   document.getElementById("modalSellingPrice").textContent=money(0);
 
@@ -133,9 +142,13 @@ function updateProductModalCalculations(){
   }
 
   const discount=Number(document.getElementById("modalDiscount").value)||0;
+  const discountType=document.getElementById("modalDiscountType").value||"percentage";
   const units=qty>0?qty:meter;
   const lineTotal=units*price;
-  const selling=mrp>0?mrp*(1-discount/100):0;
+  let selling=0;
+  if(mrp>0){
+    selling=discountType==="rupees"?Math.max(mrp-discount,0):mrp*(1-discount/100);
+  }
 
   document.getElementById("modalLineTotal").textContent=money(lineTotal);
   document.getElementById("modalSellingPrice").textContent=money(selling);
@@ -176,6 +189,8 @@ function saveProductFromModal(){
     pricingMethod:document.getElementById("modalPricingMethod").value,
     pricingPercent:Number(document.getElementById("modalPricingPercent").value)||0,
     mrp:Number(document.getElementById("modalMrp").value)||0,
+    discountType:document.getElementById("modalDiscountType").value||"percentage",
+    discountValue:Number(document.getElementById("modalDiscount").value)||0,
     discountPercent:Number(document.getElementById("modalDiscount").value)||0,
     notes:document.getElementById("modalNotes").value.trim()
   };
@@ -198,7 +213,7 @@ async function savePurchase(){
  if(!supplier)return toast("Enter supplier / party name.");if(!date)return toast("Select purchase date.");if(!cards.length)return toast("Add at least one product.");
  const items=[];
  for(let i=0;i<cards.length;i++){const c=cards[i],name=c.querySelector(".product-name").value.trim(),quantity=Number(c.querySelector(".qty").value)||0,meterQuantity=Number(c.querySelector(".meter").value)||0;if(!name)return toast(`Enter product name for item ${i+1}.`);if(quantity<=0&&meterQuantity<=0)return toast(`Enter quantity or meter for ${name}.`);
- items.push({name,subcategory:c.querySelector(".subcategory").value.trim(),brandName:c.querySelector(".brand-name").value.trim(),sizeValue:c.querySelector(".size-value").value.trim(),quantity,meterQuantity,purchasePrice:Number(c.querySelector(".price").value)||0,pricingMethod:c.querySelector(".pricing-method").value,pricingPercent:Number(c.querySelector(".pricing-percent").value)||0,mrp:Number(c.querySelector(".mrp").value)||0,discountPercent:Number(c.querySelector(".discount").value)||0,notes:c.querySelector(".notes").value.trim()});}
+ items.push({name,subcategory:c.querySelector(".subcategory").value.trim(),brandName:c.querySelector(".brand-name").value.trim(),sizeValue:c.querySelector(".size-value").value.trim(),quantity,meterQuantity,purchasePrice:Number(c.querySelector(".price").value)||0,pricingMethod:c.querySelector(".pricing-method").value,pricingPercent:Number(c.querySelector(".pricing-percent").value)||0,mrp:Number(c.querySelector(".mrp").value)||0,discountType:c.querySelector(".discount-type")?.value||"percentage",discountValue:Number(c.querySelector(".discount").value)||0,discountPercent:Number(c.querySelector(".discount").value)||0,notes:c.querySelector(".notes").value.trim()});}
  const fd=new FormData();fd.append("supplier_name",supplier);fd.append("supplier_place",supplierPlace.value.trim());fd.append("purchase_date",date);fd.append("bill_number",billNumber.value.trim());fd.append("transport_method",transportMethod.value);fd.append("ordered_by",orderedBy.value.trim());fd.append("items",JSON.stringify(items));
  cards.forEach((c,i)=>{const up=c.querySelector(".upload-input").files?.[0],cam=c.querySelector(".camera-input").files?.[0];if(up)fd.append(`image_${i}`,up);else if(cam)fd.append(`camera_${i}`,cam);});
  saveBtn.disabled=true;saveBtn.textContent="Saving...";
@@ -234,7 +249,7 @@ function printPurchase(){
       <td>${fmt(i.meter_quantity || 0)} m</td>
       <td>${money(i.purchase_price || 0)}</td>
       <td>${money(i.mrp || 0)}</td>
-      <td>${fmt(i.discount_percent || 0)}%</td>
+      <td>${i.discount_type==="rupees" ? money(i.discount_value || 0) : fmt(i.discount_value ?? i.discount_percent ?? 0) + "%"}</td>
       <td>${money(i.selling_price || 0)}</td>
       <td>${money(i.line_total || 0)}</td>
       <td>${esc(i.notes || "")}</td>
@@ -250,7 +265,7 @@ function printPurchase(){
     `Transport: ${p.transport_method || "—"}\n` +
     `Ordered By: ${p.ordered_by || "—"}\n\n` +
     (p.items || []).map((i, n) =>
-      `${n + 1}. ${i.product_name || ""} | Qty ${i.quantity || 0} | Meter ${fmt(i.meter_quantity || 0)} | Purchase Rate ${money(i.purchase_price || 0)} | MRP ${money(i.mrp || 0)} | Discount ${fmt(i.discount_percent || 0)}% | Selling ${money(i.selling_price || 0)} | Total ${money(i.line_total || 0)}`
+      `${n + 1}. ${i.product_name || ""} | Qty ${i.quantity || 0} | Meter ${fmt(i.meter_quantity || 0)} | Purchase Rate ${money(i.purchase_price || 0)} | MRP ${money(i.mrp || 0)} | Discount ${i.discount_type==="rupees" ? money(i.discount_value || 0) : fmt(i.discount_value ?? i.discount_percent ?? 0) + "%"} | Selling ${money(i.selling_price || 0)} | Total ${money(i.line_total || 0)}`
     ).join("\n") +
     `\n\nGrand Total: ${money(p.grand_total || 0)}`
   );
@@ -513,3 +528,5 @@ document.getElementById("modalMrp")?.addEventListener("input",()=>{
 productModal?.addEventListener("click",e=>{
   if(e.target===productModal) closeProductModal();
 });
+
+document.getElementById("modalDiscountType")?.addEventListener("change",updateProductModalCalculations);

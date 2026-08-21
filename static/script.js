@@ -365,107 +365,71 @@ function printPurchase(){
   w.document.close();
 }
 
+
 async function sharePurchaseHistory(){
+  const shareBtn=document.getElementById("shareHistoryBtn");
+  const originalText=shareBtn?.textContent||"Share";
+
+  if(shareBtn){
+    shareBtn.disabled=true;
+    shareBtn.textContent="Preparing PDF...";
+  }
+
   try{
-    const response = await fetch("/api/purchases");
-    const purchases = await response.json();
+    const response=await fetch("/api/purchases/history.pdf",{cache:"no-store"});
 
     if(!response.ok){
-      return toast("Could not load purchase history.");
+      let message="Could not create purchase PDF.";
+      try{
+        const data=await response.json();
+        if(data?.error) message=data.error;
+      }catch(e){}
+      throw new Error(message);
     }
 
-    if(!purchases.length){
-      return toast("No purchase history to share.");
+    const blob=await response.blob();
+    const today=new Date().toISOString().slice(0,10);
+    const filename=`Maharani_Purchase_History_${today}.pdf`;
+    const file=new File([blob],filename,{type:"application/pdf"});
+
+    const shareData={
+      title:"Maharani Purchase History",
+      text:"Maharani Wedding Collections - Purchase History Report",
+      files:[file]
+    };
+
+    if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
+      await navigator.share(shareData);
+      return;
     }
 
-    const divider = "━━━━━━━━━━━━━━━━━━━━━━";
+    // Desktop/fallback: download the premium PDF, then open WhatsApp.
+    const pdfUrl=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=pdfUrl;
+    a.download=filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
 
-    const purchaseDetails = purchases.map((p, index) => {
-      return `*PURCHASE ${index + 1}*
+    setTimeout(()=>URL.revokeObjectURL(pdfUrl),30000);
 
-*Supplier / Party*
-${p.supplier_name || "—"}
-
-*Place*
-${p.supplier_place || "—"}
-
-*Purchase Date*
-${p.purchase_date || "—"}
-
-*Bill / Order No.*
-${p.bill_number || "—"}
-
-*Transport*
-${p.transport_method || "—"}
-
-*Ordered By*
-${p.ordered_by || "—"}
-
-*Quantity*
-${p.total_quantity || 0} pcs
-
-*Meter*
-${fmt(p.total_meter || 0)} m
-
-*Purchase Total*
-${money(p.grand_total || 0)}
-
-${divider}`;
-    }).join("\n\n");
-
-    const totalPurchases = purchases.length;
-
-    const totalQuantity = purchases.reduce(
-      (total, p) => total + (Number(p.total_quantity) || 0),
-      0
+    const whatsappText=encodeURIComponent(
+      "Maharani Wedding Collections - Purchase History PDF has been prepared. Please attach the downloaded PDF to this WhatsApp chat."
     );
-
-    const totalMeter = purchases.reduce(
-      (total, p) => total + (Number(p.total_meter) || 0),
-      0
-    );
-
-    const totalAmount = purchases.reduce(
-      (total, p) => total + (Number(p.grand_total) || 0),
-      0
-    );
-
-    const whatsappMessage =
-`*MAHARANI WEDDING COLLECTIONS*
-
-*PURCHASE HISTORY REPORT*
-
-${divider}
-
-${purchaseDetails}
-
-*PURCHASE SUMMARY*
-
-*Total Purchases*
-${totalPurchases}
-
-*Total Quantity*
-${fmt(totalQuantity)} pcs
-
-*Total Meter*
-${fmt(totalMeter)} m
-
-*Total Purchase Value*
-${money(totalAmount)}
-
-${divider}
-
-_Maharani Purchase Manager_`;
-
-    const whatsappURL =
-      "https://wa.me/?text=" +
-      encodeURIComponent(whatsappMessage);
-
-    window.open(whatsappURL, "_blank");
+    window.open(`https://wa.me/?text=${whatsappText}`,"_blank");
+    toast("PDF downloaded. Attach it in WhatsApp.");
 
   }catch(error){
-    console.error(error);
-    toast("Could not share purchase history.");
+    if(error?.name!=="AbortError"){
+      console.error(error);
+      toast(error?.message||"Could not share purchase PDF.");
+    }
+  }finally{
+    if(shareBtn){
+      shareBtn.disabled=false;
+      shareBtn.textContent=originalText;
+    }
   }
 }
 

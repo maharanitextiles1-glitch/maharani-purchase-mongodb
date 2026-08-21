@@ -4,6 +4,7 @@ from pymongo import MongoClient, ReturnDocument, DESCENDING
 from bson import ObjectId
 import gridfs, os, json
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from werkzeug.utils import secure_filename
 from io import BytesIO
@@ -197,7 +198,22 @@ def create_purchase():
             "image_file_id":image_id
         })
 
+    # Generate a sequential order number for the current calendar month.
+    # Example: Aug -> 1,2,3...; Sep automatically starts again from 1.
+    india_now = datetime.now(ZoneInfo("Asia/Kolkata"))
+    month_key = india_now.strftime("%Y-%m")
+
+    counter = db.counters.find_one_and_update(
+        {"_id": f"purchase_order_{month_key}"},
+        {"$inc": {"seq": 1}},
+        upsert=True,
+        return_document=ReturnDocument.AFTER
+    )
+    order_number = int(counter.get("seq", 1))
+
     purchase = {
+        "order_number": order_number,
+        "order_month": month_key,
         "supplier_name":supplier_name,
         "supplier_place":supplier_place,
         "purchase_date":purchase_date,
@@ -215,7 +231,7 @@ def create_purchase():
         item["purchase_id"] = purchase_id
     db.purchase_items.insert_many(normalized)
 
-    return jsonify({"success":True,"purchase_id":str(purchase_id),
+    return jsonify({"success":True,"purchase_id":str(purchase_id),"order_number":order_number,
                     "total_quantity":total_quantity,"total_meter":total_meter,
                     "grand_total":grand_total}),201
 
@@ -640,8 +656,19 @@ def purchase_history_pdf_safe():
 
 @app.route("/api/meta/next-order-number")
 def next_order_number():
-    latest=db.purchases.find_one({"order_number":{"$type":"number"}},sort=[("order_number",DESCENDING)])
-    return jsonify({"next_order_number":int(latest.get("order_number",0))+1 if latest else 1})
+    if db is None:
+        return jsonify({"error": "MongoDB not configured"}), 503
+
+    india_now = datetime.now(ZoneInfo("Asia/Kolkata"))
+    month_key = india_now.strftime("%Y-%m")
+
+    counter = db.counters.find_one({"_id": f"purchase_order_{month_key}"})
+    next_no = int(counter.get("seq", 0)) + 1 if counter else 1
+
+    return jsonify({
+        "next_order_number": next_no,
+        "month": month_key
+    })
 
 @app.route("/api/suppliers")
 def supplier_suggestions():

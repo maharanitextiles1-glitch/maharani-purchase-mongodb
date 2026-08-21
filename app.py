@@ -219,6 +219,109 @@ def create_purchase():
                     "total_quantity":total_quantity,"total_meter":total_meter,
                     "grand_total":grand_total}),201
 
+
+@app.route("/api/purchases/<purchase_id>", methods=["PUT"])
+def update_purchase(purchase_id):
+    if db is None:
+        return jsonify({"error": "MongoDB not configured"}), 503
+
+    try:
+        oid = ObjectId(purchase_id)
+    except Exception:
+        return jsonify({"error": "Invalid purchase id"}), 400
+
+    existing = db.purchases.find_one({"_id": oid})
+    if not existing:
+        return jsonify({"error": "Purchase not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    supplier_name = (data.get("supplier_name") or "").strip()
+    purchase_date = (data.get("purchase_date") or "").strip()
+    items = data.get("items") or []
+
+    if not supplier_name:
+        return jsonify({"error": "Supplier / party name is required"}), 400
+    if not purchase_date:
+        return jsonify({"error": "Purchase date is required"}), 400
+    if not isinstance(items, list) or not items:
+        return jsonify({"error": "At least one product is required"}), 400
+
+    normalized_items = []
+    total_quantity = 0
+    total_meter = 0.0
+    grand_total = 0.0
+
+    for index, item in enumerate(items):
+        name = (item.get("name") or "").strip()
+        if not name:
+            return jsonify({"error": f"Product name is required for item {index + 1}"}), 400
+
+        quantity = int(float(item.get("quantity", 0) or 0))
+        meter_quantity = float(item.get("meterQuantity", 0) or 0)
+        purchase_price = float(item.get("purchasePrice", 0) or 0)
+        pricing_method = (item.get("pricingMethod") or "").strip()
+        pricing_percent = float(item.get("pricingPercent", 0) or 0)
+        mrp = float(item.get("mrp", 0) or 0)
+        discount_type = (item.get("discountType") or "percentage").strip()
+        discount_value = float(item.get("discountValue", 0) or 0)
+
+        if quantity <= 0 and meter_quantity <= 0:
+            return jsonify({"error": f"Enter quantity or meter for {name}"}), 400
+
+        units = quantity if quantity > 0 else meter_quantity
+        line_total = units * purchase_price
+
+        if mrp > 0:
+            selling_price = max(mrp - discount_value, 0) if discount_type == "rupees" else mrp * (1 - discount_value / 100)
+        else:
+            selling_price = 0
+
+        normalized_items.append({
+            "purchase_id": oid,
+            "product_name": name,
+            "subcategory": (item.get("subcategory") or "").strip(),
+            "brand_name": (item.get("brandName") or "").strip(),
+            "size_value": (item.get("sizeValue") or "").strip(),
+            "quantity": quantity,
+            "meter_quantity": meter_quantity,
+            "purchase_price": purchase_price,
+            "pricing_method": pricing_method,
+            "pricing_percent": pricing_percent,
+            "mrp": mrp,
+            "discount_type": discount_type,
+            "discount_value": discount_value,
+            "discount_percent": discount_value if discount_type == "percentage" else 0,
+            "selling_price": selling_price,
+            "line_total": line_total,
+            "notes": (item.get("notes") or "").strip(),
+        })
+
+        total_quantity += quantity
+        total_meter += meter_quantity
+        grand_total += line_total
+
+    db.purchases.update_one(
+        {"_id": oid},
+        {"$set": {
+            "supplier_name": supplier_name,
+            "supplier_place": (data.get("supplier_place") or "").strip(),
+            "purchase_date": purchase_date,
+            "transport_method": (data.get("transport_method") or "").strip(),
+            "ordered_by": (data.get("ordered_by") or "").strip(),
+            "total_quantity": total_quantity,
+            "total_meter": total_meter,
+            "grand_total": grand_total,
+            "updated_at": datetime.utcnow(),
+        }}
+    )
+
+    db.purchase_items.delete_many({"purchase_id": oid})
+    if normalized_items:
+        db.purchase_items.insert_many(normalized_items)
+
+    updated = db.purchases.find_one({"_id": oid})
+    return jsonify(serialize_purchase(updated))
+
 @app.route("/api/purchases/<purchase_id>", methods=["DELETE"])
 def delete_purchase(purchase_id):
     if db is None: return jsonify({"error":"MongoDB not configured"}),503

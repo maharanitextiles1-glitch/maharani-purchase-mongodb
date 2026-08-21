@@ -224,13 +224,72 @@ async function autofillSupplierFromDatabase(){
  if(!r.ok||!a.length||String(a[0].supplier_name||"").toLowerCase()!==name.toLowerCase())return;
  const s=a[0];supplierPlace.value=s.supplier_place||"";transportMethod.value=s.transport_method||"";orderedBy.value=s.ordered_by||"";}catch(e){}
 }
+
 function renderHistory(){
- const q=(document.getElementById("historySearch")?.value||"").trim().toLowerCase(),from=document.getElementById("historyFromDate")?.value||"",to=document.getElementById("historyToDate")?.value||"";
- const a=allPurchaseHistory.filter(p=>{const d=String(p.purchase_date||"").slice(0,10);if(from&&d<from)return false;if(to&&d>to)return false;if(!q)return true;
- return [p.order_number,p.bill_number,p.supplier_name,p.supplier_place,p.purchase_date,formatDisplayDate(p.purchase_date),p.transport_method,p.ordered_by,p.grand_total,...(p.search_terms||[])].join(" ").toLowerCase().includes(q);});
- const info=document.getElementById("historyFilterInfo");if(info)info.textContent=`Showing ${a.length} of ${allPurchaseHistory.length} purchases`;
- if(!a.length){historyList.innerHTML='<div class="empty-history">No purchases match your search or date filter.</div>';return;}
- historyList.innerHTML=a.map(p=>`<div class="history-row"><div><strong>${esc(p.supplier_name)}</strong><small>${esc(p.supplier_place||"—")} • Order #${esc(p.order_number||p.bill_number||"—")}</small></div><div><strong>${esc(formatDisplayDate(p.purchase_date))}</strong><small>${esc(p.transport_method||"No transport")}</small></div><div><strong>${p.total_quantity||0} pcs / ${fmt(p.total_meter||0)} m</strong><small>Purchased</small></div><div><strong class="amount">${money(p.grand_total)}</strong><small>Total</small></div><div class="history-actions"><button class="secondary" onclick="printPurchaseById('${p.id}')">Print</button><button class="secondary danger" onclick="deletePurchase('${p.id}')">Delete</button></div></div>`).join("");
+  const q=(document.getElementById("historySearch")?.value||"").trim().toLowerCase();
+  const from=document.getElementById("historyFromDate")?.value||"";
+  const to=document.getElementById("historyToDate")?.value||"";
+
+  const filtered=allPurchaseHistory.filter(p=>{
+    const date=String(p.purchase_date||"").slice(0,10);
+    if(from && date<from) return false;
+    if(to && date>to) return false;
+    if(!q) return true;
+
+    const hay=[
+      p.order_number,p.bill_number,p.supplier_name,p.supplier_place,
+      p.purchase_date,formatDisplayDate(p.purchase_date),
+      p.transport_method,p.ordered_by,p.grand_total,
+      ...(p.search_terms||[])
+    ].join(" ").toLowerCase();
+
+    return hay.includes(q);
+  });
+
+  const info=document.getElementById("historyFilterInfo");
+  if(info) info.textContent=`Showing ${filtered.length} of ${allPurchaseHistory.length} purchases`;
+
+  if(!filtered.length){
+    historyList.innerHTML='<div class="empty-history">No purchases match your search or date filter.</div>';
+    return;
+  }
+
+  historyList.innerHTML=filtered.map(p=>`
+    <div class="history-row history-row-with-order">
+      <div class="history-order">
+        <span class="history-mobile-label">Order No.</span>
+        <strong>#${esc(p.order_number||p.bill_number||"—")}</strong>
+      </div>
+
+      <div>
+        <span class="history-mobile-label">Supplier</span>
+        <strong>${esc(p.supplier_name)}</strong>
+        <small>${esc(p.supplier_place||"—")}</small>
+      </div>
+
+      <div>
+        <span class="history-mobile-label">Date</span>
+        <strong>${esc(formatDisplayDate(p.purchase_date))}</strong>
+        <small>${esc(p.transport_method||"No transport")}</small>
+      </div>
+
+      <div>
+        <span class="history-mobile-label">Purchased</span>
+        <strong>${p.total_quantity||0} pcs / ${fmt(p.total_meter||0)} m</strong>
+      </div>
+
+      <div>
+        <span class="history-mobile-label">Total</span>
+        <strong class="amount">${money(p.grand_total)}</strong>
+      </div>
+
+      <div class="history-actions">
+        <button class="secondary" onclick="editPurchase('${p.id}')">Edit</button>
+        <button class="secondary" onclick="printPurchaseById('${p.id}')">Print</button>
+        <button class="secondary danger" onclick="deletePurchase('${p.id}')">Delete</button>
+      </div>
+    </div>
+  `).join("");
 }
 
 function clearForm(){productList.innerHTML="";["supplierName","supplierPlace","orderedBy"].forEach(id=>document.getElementById(id).value="");transportMethod.value="";purchaseDate.valueAsDate=new Date();updateSummary();loadNextOrderNumber();}
@@ -265,6 +324,181 @@ async function printPurchaseById(id){
   if(!r.ok) return toast(p.error||"Could not open purchase.");
   currentPurchase=p;
   printPurchase();
+}
+
+
+let editingPurchaseId=null;
+
+async function editPurchase(id){
+  try{
+    const r=await fetch(`/api/purchases/${id}`);
+    const p=await r.json();
+    if(!r.ok) return toast(p.error||"Could not load purchase.");
+
+    editingPurchaseId=id;
+
+    document.getElementById("editOrderNumber").value=p.order_number||p.bill_number||"";
+    document.getElementById("editSupplierName").value=p.supplier_name||"";
+    document.getElementById("editSupplierPlace").value=p.supplier_place||"";
+    document.getElementById("editPurchaseDate").value=String(p.purchase_date||"").slice(0,10);
+    document.getElementById("editTransportMethod").value=p.transport_method||"";
+    document.getElementById("editOrderedBy").value=p.ordered_by||"";
+
+    const list=document.getElementById("editProductsList");
+    list.innerHTML=(p.items||[]).map((item,index)=>`
+      <div class="edit-product-card" data-index="${index}">
+        <div class="edit-product-title">
+          <strong>Product ${index+1}</strong>
+        </div>
+
+        <div class="grid three">
+          <label>Product Name<input class="ep-name" value="${esc(item.product_name||"")}"></label>
+          <label>Subcategory<input class="ep-subcategory" value="${esc(item.subcategory||"")}"></label>
+          <label>Brand Name<input class="ep-brand" value="${esc(item.brand_name||"")}"></label>
+        </div>
+
+        <div class="grid four">
+          <label>Size<input class="ep-size" value="${esc(item.size_value||"")}"></label>
+          <label>Quantity<input class="ep-qty" type="number" min="0" step="1" value="${Number(item.quantity)||0}"></label>
+          <label>Meter Quantity<input class="ep-meter" type="number" min="0" step="0.01" value="${Number(item.meter_quantity)||0}"></label>
+          <label>Purchase Rate<input class="ep-price" type="number" min="0" step="0.01" value="${Number(item.purchase_price)||0}"></label>
+
+          <label>Pricing Method
+            <select class="ep-pricing-method">
+              <option value="">None</option>
+              <option value="markup" ${item.pricing_method==="markup"?"selected":""}>Markup %</option>
+              <option value="margin" ${item.pricing_method==="margin"?"selected":""}>Margin %</option>
+              <option value="markdown" ${item.pricing_method==="markdown"?"selected":""}>Markdown %</option>
+            </select>
+          </label>
+
+          <label>Pricing %
+            <input class="ep-pricing-percent" type="number" min="0" step="0.01" value="${Number(item.pricing_percent)||0}">
+          </label>
+
+          <label>MRP
+            <input class="ep-mrp" type="number" min="0" step="0.01" value="${Number(item.mrp)||0}">
+          </label>
+
+          <label>Discount Type
+            <select class="ep-discount-type">
+              <option value="percentage" ${item.discount_type!=="rupees"?"selected":""}>Percentage (%)</option>
+              <option value="rupees" ${item.discount_type==="rupees"?"selected":""}>Rupees (₹)</option>
+            </select>
+          </label>
+
+          <label>Discount
+            <input class="ep-discount" type="number" min="0" step="0.01" value="${Number(item.discount_value ?? item.discount_percent ?? 0)}">
+          </label>
+        </div>
+
+        <label>Notes<input class="ep-notes" value="${esc(item.notes||"")}"></label>
+
+        <div class="edit-product-calc">
+          <span>Purchase Total</span>
+          <strong class="ep-line-total">${money(item.line_total||0)}</strong>
+        </div>
+      </div>
+    `).join("");
+
+    list.querySelectorAll("input,select").forEach(el=>{
+      el.addEventListener("input",updateEditSummary);
+      el.addEventListener("change",updateEditSummary);
+    });
+
+    updateEditSummary();
+    document.getElementById("editPurchaseModal").classList.add("show");
+
+  }catch(e){
+    console.error(e);
+    toast("Could not open purchase for editing.");
+  }
+}
+
+function updateEditSummary(){
+  let totalQty=0,totalMeter=0,grand=0;
+
+  document.querySelectorAll(".edit-product-card").forEach(card=>{
+    const qty=Number(card.querySelector(".ep-qty").value)||0;
+    const meter=Number(card.querySelector(".ep-meter").value)||0;
+    const price=Number(card.querySelector(".ep-price").value)||0;
+    const line=(qty>0?qty:meter)*price;
+
+    totalQty+=qty;
+    totalMeter+=meter;
+    grand+=line;
+
+    card.querySelector(".ep-line-total").textContent=money(line);
+  });
+
+  document.getElementById("editTotalQty").textContent=totalQty;
+  document.getElementById("editTotalMeter").textContent=`${fmt(totalMeter)} m`;
+  document.getElementById("editGrandTotal").textContent=money(grand);
+}
+
+function closeEditPurchase(){
+  document.getElementById("editPurchaseModal")?.classList.remove("show");
+  editingPurchaseId=null;
+}
+
+async function saveEditedPurchase(){
+  if(!editingPurchaseId) return;
+
+  const productCards=[...document.querySelectorAll(".edit-product-card")];
+  const items=productCards.map(card=>({
+    name:card.querySelector(".ep-name").value.trim(),
+    subcategory:card.querySelector(".ep-subcategory").value.trim(),
+    brandName:card.querySelector(".ep-brand").value.trim(),
+    sizeValue:card.querySelector(".ep-size").value.trim(),
+    quantity:Number(card.querySelector(".ep-qty").value)||0,
+    meterQuantity:Number(card.querySelector(".ep-meter").value)||0,
+    purchasePrice:Number(card.querySelector(".ep-price").value)||0,
+    pricingMethod:card.querySelector(".ep-pricing-method").value,
+    pricingPercent:Number(card.querySelector(".ep-pricing-percent").value)||0,
+    mrp:Number(card.querySelector(".ep-mrp").value)||0,
+    discountType:card.querySelector(".ep-discount-type").value||"percentage",
+    discountValue:Number(card.querySelector(".ep-discount").value)||0,
+    notes:card.querySelector(".ep-notes").value.trim()
+  }));
+
+  if(items.some(x=>!x.name)){
+    return toast("Every product needs a product name.");
+  }
+
+  const payload={
+    supplier_name:document.getElementById("editSupplierName").value.trim(),
+    supplier_place:document.getElementById("editSupplierPlace").value.trim(),
+    purchase_date:document.getElementById("editPurchaseDate").value,
+    transport_method:document.getElementById("editTransportMethod").value,
+    ordered_by:document.getElementById("editOrderedBy").value.trim(),
+    items
+  };
+
+  const btn=document.getElementById("saveEditPurchaseBtn");
+  const old=btn.textContent;
+  btn.disabled=true;
+  btn.textContent="Saving...";
+
+  try{
+    const r=await fetch(`/api/purchases/${editingPurchaseId}`,{
+      method:"PUT",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(payload)
+    });
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.error||"Could not save changes.");
+
+    toast("Purchase updated.");
+    closeEditPurchase();
+    await loadHistory();
+
+  }catch(e){
+    console.error(e);
+    toast(e.message);
+  }finally{
+    btn.disabled=false;
+    btn.textContent=old;
+  }
 }
 
 async function deletePurchase(id){if(!confirm("Delete this purchase?"))return;const r=await fetch(`/api/purchases/${id}`,{method:"DELETE"});if(!r.ok)return toast("Could not delete.");toast("Purchase deleted.");loadHistory();}
@@ -599,3 +833,11 @@ document.getElementById("clearHistoryFiltersBtn")?.addEventListener("click",()=>
 supplierName?.addEventListener("input",()=>{clearTimeout(supplierLookupTimer);supplierLookupTimer=setTimeout(()=>loadSupplierSuggestions(supplierName.value.trim()),180);});
 supplierName?.addEventListener("change",autofillSupplierFromDatabase);supplierName?.addEventListener("blur",autofillSupplierFromDatabase);
 loadNextOrderNumber();loadSupplierSuggestions("");
+
+document.getElementById("closeEditPurchaseBtn")?.addEventListener("click",closeEditPurchase);
+document.getElementById("cancelEditPurchaseBtn")?.addEventListener("click",closeEditPurchase);
+document.getElementById("saveEditPurchaseBtn")?.addEventListener("click",saveEditedPurchase);
+document.getElementById("editPurchaseModal")?.addEventListener("click",e=>{
+  if(e.target.id==="editPurchaseModal") closeEditPurchase();
+});
+window.editPurchase=editPurchase;

@@ -108,6 +108,39 @@
 </template>
 
 
+
+<div class="modal" id="pdfShareModal">
+  <div class="modal-card pdf-share-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Purchase History</p>
+        <h2>PDF Ready</h2>
+      </div>
+      <button type="button" class="secondary" id="closePdfShareModalBtn">Close</button>
+    </div>
+
+    <div class="pdf-share-content">
+      <div class="pdf-ready-icon">PDF</div>
+      <div>
+        <h3>Premium purchase report is ready</h3>
+        <p>
+          Tap <strong>Share PDF</strong> to open your device share menu.
+          On iPhone or Android, choose WhatsApp to send the PDF as a document.
+        </p>
+      </div>
+    </div>
+
+    <div class="pdf-share-actions">
+      <button type="button" class="secondary" id="downloadPreparedPdfBtn">
+        Download PDF
+      </button>
+      <button type="button" class="primary" id="sharePreparedPdfBtn">
+        Share PDF
+      </button>
+    </div>
+  </div>
+</div>
+
 <div class="modal product-entry-modal" id="productModal">
   <div class="modal-card product-modal-card">
     <div class="section-head">

@@ -366,65 +366,52 @@ function printPurchase(){
 }
 
 
-async function sharePurchaseHistory(){
-  const shareBtn=document.getElementById("shareHistoryBtn");
-  const originalText=shareBtn?.textContent||"Share";
 
-  if(shareBtn){
-    shareBtn.disabled=true;
-    shareBtn.textContent="Preparing PDF...";
-  }
+
+
+let preparedPdfBlob = null;
+let preparedPdfFile = null;
+
+async function preparePurchaseHistoryPdf(){
+  const shareBtn=document.getElementById("shareHistoryBtn");
+  const originalText=shareBtn?.textContent || "Share PDF";
 
   try{
-    const response=await fetch("/api/purchases/history.pdf",{cache:"no-store"});
+    if(shareBtn){
+      shareBtn.disabled=true;
+      shareBtn.textContent="Preparing PDF...";
+    }
+
+    const response=await fetch("/api/purchases/report.pdf",{
+      method:"GET",
+      cache:"no-store"
+    });
 
     if(!response.ok){
-      let message="Could not create purchase PDF.";
+      let message="Could not create PDF.";
       try{
         const data=await response.json();
-        if(data?.error) message=data.error;
+        if(data.error) message=data.error;
       }catch(e){}
-      throw new Error(message);
+      return toast(message);
     }
 
-    const blob=await response.blob();
-    const today=new Date().toISOString().slice(0,10);
-    const filename=`Maharani_Purchase_History_${today}.pdf`;
-    const file=new File([blob],filename,{type:"application/pdf"});
+    preparedPdfBlob=await response.blob();
 
-    const shareData={
-      title:"Maharani Purchase History",
-      text:"Maharani Wedding Collections - Purchase History Report",
-      files:[file]
-    };
+    const filename=
+      `Maharani-Purchase-History-${new Date().toISOString().slice(0,10)}.pdf`;
 
-    if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
-      await navigator.share(shareData);
-      return;
-    }
-
-    // Desktop/fallback: download the premium PDF, then open WhatsApp.
-    const pdfUrl=URL.createObjectURL(blob);
-    const a=document.createElement("a");
-    a.href=pdfUrl;
-    a.download=filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-
-    setTimeout(()=>URL.revokeObjectURL(pdfUrl),30000);
-
-    const whatsappText=encodeURIComponent(
-      "Maharani Wedding Collections - Purchase History PDF has been prepared. Please attach the downloaded PDF to this WhatsApp chat."
+    preparedPdfFile=new File(
+      [preparedPdfBlob],
+      filename,
+      {type:"application/pdf"}
     );
-    window.open(`https://wa.me/?text=${whatsappText}`,"_blank");
-    toast("PDF downloaded. Attach it in WhatsApp.");
+
+    document.getElementById("pdfShareModal")?.classList.add("show");
 
   }catch(error){
-    if(error?.name!=="AbortError"){
-      console.error(error);
-      toast(error?.message||"Could not share purchase PDF.");
-    }
+    console.error(error);
+    toast("Could not prepare PDF.");
   }finally{
     if(shareBtn){
       shareBtn.disabled=false;
@@ -433,14 +420,64 @@ async function sharePurchaseHistory(){
   }
 }
 
+async function sharePreparedPdf(){
+  if(!preparedPdfBlob || !preparedPdfFile){
+    return toast("Prepare the PDF first.");
+  }
+
+  try{
+    // iPhone / iPad / Android / compatible browsers.
+    // This function is called directly from the Share PDF button,
+    // so navigator.share receives a fresh user gesture.
+    if(
+      navigator.share &&
+      (!navigator.canShare || navigator.canShare({files:[preparedPdfFile]}))
+    ){
+      await navigator.share({
+        title:"Maharani Purchase History",
+        text:"Maharani Wedding Collections - Purchase History Report",
+        files:[preparedPdfFile]
+      });
+      return;
+    }
+
+    // Desktop/browser fallback where file sharing is not supported.
+    downloadPreparedPdf();
+    toast("PDF downloaded. Attach it in WhatsApp or your preferred app.");
+
+  }catch(error){
+    if(error?.name!=="AbortError"){
+      console.error(error);
+      toast("Could not share PDF.");
+    }
+  }
+}
+
+function downloadPreparedPdf(){
+  if(!preparedPdfBlob || !preparedPdfFile){
+    return toast("Prepare the PDF first.");
+  }
+
+  const url=URL.createObjectURL(preparedPdfBlob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download=preparedPdfFile.name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
+}
+
+function closePdfShareModal(){
+  document.getElementById("pdfShareModal")?.classList.remove("show");
+}
+
 function esc(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");}
 addProductBtn.onclick=addProduct;emptyAddBtn.onclick=addProduct;saveBtn.onclick=savePurchase;clearBtn.onclick=clearForm;refreshHistoryBtn.onclick=loadHistory;printBtn.onclick=printPurchase;closeModalBtn.onclick=()=>detailModal.classList.remove("show");
 document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.querySelectorAll(".view").forEach(v=>v.classList.remove("active-view"));document.getElementById(b.dataset.view).classList.add("active-view");if(b.dataset.view==="historyView")loadHistory();});
 window.viewPurchase=viewPurchase;window.deletePurchase=deletePurchase;updateSummary();loadHistory();
 
-const shareHistoryBtn=document.getElementById("shareHistoryBtn");
-if(shareHistoryBtn) shareHistoryBtn.addEventListener("click", sharePurchaseHistory);
-window.sharePurchaseHistory=sharePurchaseHistory;
 
 
 const productModal=document.getElementById("productModal");
@@ -494,3 +531,24 @@ productModal?.addEventListener("click",e=>{
 });
 
 document.getElementById("modalDiscountType")?.addEventListener("change",updateProductModalCalculations);
+
+
+
+const shareHistoryBtn=document.getElementById("shareHistoryBtn");
+if(shareHistoryBtn){
+  shareHistoryBtn.addEventListener("click",preparePurchaseHistoryPdf);
+}
+
+document.getElementById("sharePreparedPdfBtn")?.addEventListener("click",sharePreparedPdf);
+document.getElementById("downloadPreparedPdfBtn")?.addEventListener("click",downloadPreparedPdf);
+document.getElementById("closePdfShareModalBtn")?.addEventListener("click",closePdfShareModal);
+
+document.getElementById("pdfShareModal")?.addEventListener("click",(event)=>{
+  if(event.target.id==="pdfShareModal"){
+    closePdfShareModal();
+  }
+});
+
+window.preparePurchaseHistoryPdf=preparePurchaseHistoryPdf;
+window.sharePreparedPdf=sharePreparedPdf;
+window.downloadPreparedPdf=downloadPreparedPdf;

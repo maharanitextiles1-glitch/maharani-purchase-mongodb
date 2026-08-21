@@ -382,7 +382,7 @@ async function preparePurchaseHistoryPdf(){
       shareBtn.textContent="Preparing PDF...";
     }
 
-    const response=await fetch("/api/purchases/report.pdf",{
+    const response=await fetch("/api/reports/purchase-history.pdf",{
       method:"GET",
       cache:"no-store"
     });

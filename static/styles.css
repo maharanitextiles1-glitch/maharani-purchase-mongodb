@@ -515,3 +515,9 @@ button {
     width:100%;
   }
 }
+
+.history-filters{display:grid;grid-template-columns:minmax(240px,2fr) minmax(150px,1fr) minmax(150px,1fr) auto;gap:10px;align-items:end;padding:14px;margin-bottom:8px;border:1px solid var(--line);border-radius:14px;background:#faf7f8}
+.history-filter-info{color:var(--muted);font-size:11px;margin:0 2px 10px}
+#billNumber[readonly]{background:#f8f4f5;color:var(--brand);font-weight:900}
+@media(max-width:760px){.history-filters{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.history-search{grid-column:1/-1}}
+@media(max-width:480px){.history-filters{grid-template-columns:minmax(0,1fr)}.history-search{grid-column:auto}.history-filters button{width:100%}}

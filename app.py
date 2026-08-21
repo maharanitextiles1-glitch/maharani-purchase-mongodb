@@ -1,6 +1,6 @@
 
 from flask import Flask, render_template, request, jsonify, Response, send_from_directory
-from pymongo import MongoClient, DESCENDING
+from pymongo import MongoClient, ReturnDocument, DESCENDING
 from bson import ObjectId
 import gridfs, os, json
 from datetime import datetime
@@ -533,6 +533,26 @@ def purchase_history_pdf_safe():
         },
     )
 
+
+
+@app.route("/api/meta/next-order-number")
+def next_order_number():
+    latest=db.purchases.find_one({"order_number":{"$type":"number"}},sort=[("order_number",DESCENDING)])
+    return jsonify({"next_order_number":int(latest.get("order_number",0))+1 if latest else 1})
+
+@app.route("/api/suppliers")
+def supplier_suggestions():
+    q=(request.args.get("q") or "").strip(); exact=request.args.get("exact")=="1"; match={}
+    if q: match["supplier_name"]={"$regex":("^"+re.escape(q)+"$") if exact else ("^"+re.escape(q)),"$options":"i"}
+    pipeline=[{"$match":match},{"$sort":{"created_at":-1}},{"$group":{"_id":{"$toLower":"$supplier_name"},"supplier_name":{"$first":"$supplier_name"},"supplier_place":{"$first":"$supplier_place"},"transport_method":{"$first":"$transport_method"},"ordered_by":{"$first":"$ordered_by"}}},{"$sort":{"supplier_name":1}},{"$limit":20},{"$project":{"_id":0}}]
+    return jsonify(list(db.purchases.aggregate(pipeline)))
+
+@app.route("/api/purchases/search-index")
+def purchase_search_index():
+    result={}
+    for i in db.purchase_items.find({},{"purchase_id":1,"product_name":1,"subcategory":1,"brand_name":1,"size_value":1,"notes":1}):
+        k=str(i.get("purchase_id")); result.setdefault(k,[]); result[k]+=[i.get("product_name") or "",i.get("subcategory") or "",i.get("brand_name") or "",i.get("size_value") or "",i.get("notes") or ""]
+    return jsonify(result)
 
 @app.route("/manifest.json")
 def manifest():

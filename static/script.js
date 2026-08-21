@@ -2,6 +2,9 @@
 let currentPurchase=null;
 const money=v=>new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",maximumFractionDigits:2}).format(Number(v)||0);
 const fmt=v=>new Intl.NumberFormat("en-IN",{maximumFractionDigits:2}).format(Number(v)||0);
+const formatDisplayDate=value=>{if(!value)return "—";const p=String(value).slice(0,10).split("-");return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:String(value);};
+let allPurchaseHistory=[],supplierLookupTimer=null;
+
 const productList=document.getElementById("productList");
 const template=document.getElementById("productTemplate");
 const emptyState=document.getElementById("emptyState");
@@ -207,7 +210,31 @@ function updateSummary(){
   const addAnotherWrap=document.getElementById("addAnotherWrap");
   if(addAnotherWrap) addAnotherWrap.style.display=cards.length?"block":"none";
 }
-function clearForm(){productList.innerHTML="";["supplierName","supplierPlace","billNumber","orderedBy"].forEach(id=>document.getElementById(id).value="");transportMethod.value="";purchaseDate.valueAsDate=new Date();updateSummary();}
+
+async function loadNextOrderNumber(){
+ try{const r=await fetch("/api/meta/next-order-number",{cache:"no-store"}),d=await r.json();if(r.ok)billNumber.value=String(d.next_order_number||1);}catch(e){}
+}
+async function loadSupplierSuggestions(q=""){
+ try{const r=await fetch(`/api/suppliers?q=${encodeURIComponent(q)}`,{cache:"no-store"}),a=await r.json();if(!r.ok)return;
+ const dl=document.getElementById("supplierSuggestions");if(dl)dl.innerHTML=a.map(s=>`<option value="${esc(s.supplier_name)}">${esc(s.supplier_place||"")}</option>`).join("");}catch(e){}
+}
+async function autofillSupplierFromDatabase(){
+ const name=supplierName.value.trim();if(!name)return;
+ try{const r=await fetch(`/api/suppliers?q=${encodeURIComponent(name)}&exact=1`,{cache:"no-store"}),a=await r.json();
+ if(!r.ok||!a.length||String(a[0].supplier_name||"").toLowerCase()!==name.toLowerCase())return;
+ const s=a[0];supplierPlace.value=s.supplier_place||"";transportMethod.value=s.transport_method||"";orderedBy.value=s.ordered_by||"";}catch(e){}
+}
+function renderHistory(){
+ const q=(document.getElementById("historySearch")?.value||"").trim().toLowerCase(),from=document.getElementById("historyFromDate")?.value||"",to=document.getElementById("historyToDate")?.value||"";
+ const a=allPurchaseHistory.filter(p=>{const d=String(p.purchase_date||"").slice(0,10);if(from&&d<from)return false;if(to&&d>to)return false;if(!q)return true;
+ return [p.order_number,p.bill_number,p.supplier_name,p.supplier_place,p.purchase_date,formatDisplayDate(p.purchase_date),p.transport_method,p.ordered_by,p.grand_total,...(p.search_terms||[])].join(" ").toLowerCase().includes(q);});
+ const info=document.getElementById("historyFilterInfo");if(info)info.textContent=`Showing ${a.length} of ${allPurchaseHistory.length} purchases`;
+ if(!a.length){historyList.innerHTML='<div class="empty-history">No purchases match your search or date filter.</div>';return;}
+ historyList.innerHTML=a.map(p=>`<div class="history-row"><div><strong>${esc(p.supplier_name)}</strong><small>${esc(p.supplier_place||"—")} • Order #${esc(p.order_number||p.bill_number||"—")}</small></div><div><strong>${esc(formatDisplayDate(p.purchase_date))}</strong><small>${esc(p.transport_method||"No transport")}</small></div><div><strong>${p.total_quantity||0} pcs / ${fmt(p.total_meter||0)} m</strong><small>Purchased</small></div><div><strong class="amount">${money(p.grand_total)}</strong><small>Total</small></div><div class="history-actions"><button class="secondary" onclick="printPurchaseById('${p.id}')">Print</button><button class="secondary danger" onclick="deletePurchase('${p.id}')">Delete</button></div></div>`).join("");
+}
+
+function clearForm(){productList.innerHTML="";["supplierName","supplierPlace","orderedBy"].forEach(id=>document.getElementById(id).value="");transportMethod.value="";purchaseDate.valueAsDate=new Date();updateSummary();loadNextOrderNumber();}
+
 async function savePurchase(){
  const cards=[...document.querySelectorAll(".product-card")],supplier=supplierName.value.trim(),date=purchaseDate.value;
  if(!supplier)return toast("Enter supplier / party name.");if(!date)return toast("Select purchase date.");if(!cards.length)return toast("Add at least one product.");
@@ -221,11 +248,14 @@ async function savePurchase(){
 }
 async function loadHistory(){
  historyList.innerHTML='<div class="empty-history">Loading...</div>';
- try{const r=await fetch("/api/purchases"),arr=await r.json();if(!arr.length){historyList.innerHTML='<div class="empty-history">No saved purchases yet.</div>';return;}historyList.innerHTML=arr.map(p=>`<div class="history-row"><div><strong>${esc(p.supplier_name)}</strong><small>${esc(p.supplier_place||"—")}</small></div><div><strong>${esc(p.purchase_date)}</strong><small>${esc(p.transport_method||"No transport")}</small></div><div><strong>${p.total_quantity||0} pcs / ${fmt(p.total_meter||0)} m</strong><small>Purchased</small></div><div><strong class="amount">${money(p.grand_total)}</strong><small>Total</small></div><div class="history-actions"><button class="secondary" onclick="printPurchaseById('${p.id}')">Print</button><button class="secondary danger" onclick="deletePurchase('${p.id}')">Delete</button></div></div>`).join("");}catch{historyList.innerHTML='<div class="empty-history">Could not load purchase history.</div>';}
+ try{const r=await fetch("/api/purchases"),arr=await r.json();if(!r.ok)throw 0;
+ try{const sr=await fetch("/api/purchases/search-index",{cache:"no-store"}),idx=sr.ok?await sr.json():{};arr.forEach(p=>p.search_terms=idx[p.id]||[]);}catch(e){}
+ allPurchaseHistory=arr;renderHistory();}catch(e){historyList.innerHTML='<div class="empty-history">Could not load purchase history.</div>';}
 }
+
 async function viewPurchase(id){
  const r=await fetch(`/api/purchases/${id}`),p=await r.json();if(!r.ok)return toast(p.error||"Could not open purchase.");currentPurchase=p;modalTitle.textContent=`Purchase ${p.id}`;
- modalContent.innerHTML=`<div class="meta-grid"><div><span>Supplier</span><strong>${esc(p.supplier_name)}</strong></div><div><span>Place</span><strong>${esc(p.supplier_place||"—")}</strong></div><div><span>Date</span><strong>${esc(p.purchase_date)}</strong></div><div><span>Bill / Order No.</span><strong>${esc(p.bill_number||"—")}</strong></div><div><span>Transport</span><strong>${esc(p.transport_method||"—")}</strong></div><div><span>Ordered By</span><strong>${esc(p.ordered_by||"—")}</strong></div></div><div class="detail-list">${p.items.map(i=>`<div class="detail-item">${i.image_url?`<img src="${i.image_url}">`:`<div class="no-img">No image</div>`}<div><strong>${esc(i.product_name)}</strong><small>${esc(i.subcategory||"")} ${i.brand_name?"• "+esc(i.brand_name):""} ${i.size_value?"• "+esc(i.size_value):""}</small><small>Qty ${i.quantity||0} • Meter ${fmt(i.meter_quantity||0)} • Purchase ${money(i.purchase_price)}</small><small>${i.pricing_method?esc(i.pricing_method)+" "+fmt(i.pricing_percent)+"% • ":""}MRP ${money(i.mrp)} • Discount ${fmt(i.discount_percent)}% • Selling ${money(i.selling_price)}</small></div><strong>${money(i.line_total)}</strong></div>`).join("")}</div><div class="modal-total">${p.total_quantity||0} pcs • ${fmt(p.total_meter||0)} m • ${money(p.grand_total)}</div>`;
+ modalContent.innerHTML=`<div class="meta-grid"><div><span>Supplier</span><strong>${esc(p.supplier_name)}</strong></div><div><span>Place</span><strong>${esc(p.supplier_place||"—")}</strong></div><div><span>Date</span><strong>${esc(formatDisplayDate(p.purchase_date))}</strong></div><div><span>Order No.</span><strong>${esc(p.order_number||p.bill_number||"—")}</strong></div><div><span>Transport</span><strong>${esc(p.transport_method||"—")}</strong></div><div><span>Ordered By</span><strong>${esc(p.ordered_by||"—")}</strong></div></div><div class="detail-list">${p.items.map(i=>`<div class="detail-item">${i.image_url?`<img src="${i.image_url}">`:`<div class="no-img">No image</div>`}<div><strong>${esc(i.product_name)}</strong><small>${esc(i.subcategory||"")} ${i.brand_name?"• "+esc(i.brand_name):""} ${i.size_value?"• "+esc(i.size_value):""}</small><small>Qty ${i.quantity||0} • Meter ${fmt(i.meter_quantity||0)} • Purchase ${money(i.purchase_price)}</small><small>${i.pricing_method?esc(i.pricing_method)+" "+fmt(i.pricing_percent)+"% • ":""}MRP ${money(i.mrp)} • Discount ${fmt(i.discount_percent)}% • Selling ${money(i.selling_price)}</small></div><strong>${money(i.line_total)}</strong></div>`).join("")}</div><div class="modal-total">${p.total_quantity||0} pcs • ${fmt(p.total_meter||0)} m • ${money(p.grand_total)}</div>`;
  detailModal.classList.add("show");
 }
 
@@ -269,8 +299,8 @@ function printPurchase(){
     `Maharani Wedding Collections - Purchase Details\n\n` +
     `Supplier: ${p.supplier_name || "—"}\n` +
     `Place: ${p.supplier_place || "—"}\n` +
-    `Purchase Date: ${p.purchase_date || "—"}\n` +
-    `Bill / Order No.: ${p.bill_number || "—"}\n` +
+    `Purchase Date: ${formatDisplayDate(p.purchase_date)}\n` +
+    `Order No.: ${p.order_number || p.bill_number || "—"}\n` +
     `Transport: ${p.transport_method || "—"}\n` +
     `Ordered By: ${p.ordered_by || "—"}\n\n` +
     (p.items || []).map((i, n) =>
@@ -331,8 +361,8 @@ function printPurchase(){
       <div class="meta">
         <div><span>Supplier / Party Name</span><strong>${esc(p.supplier_name || "—")}</strong></div>
         <div><span>Place</span><strong>${esc(p.supplier_place || "—")}</strong></div>
-        <div><span>Purchase Date</span><strong>${esc(p.purchase_date || "—")}</strong></div>
-        <div><span>Bill / Order No.</span><strong>${esc(p.bill_number || "—")}</strong></div>
+        <div><span>Purchase Date</span><strong>${esc(formatDisplayDate(p.purchase_date))}</strong></div>
+        <div><span>Order No.</span><strong>${esc(p.order_number || p.bill_number || "—")}</strong></div>
         <div><span>Transport</span><strong>${esc(p.transport_method || "—")}</strong></div>
         <div><span>Ordered By</span><strong>${esc(p.ordered_by || "—")}</strong></div>
         <div><span>Total Quantity</span><strong>${p.total_quantity || 0} pcs</strong></div>
@@ -561,3 +591,11 @@ document.getElementById("pdfShareModal")?.addEventListener("click",(event)=>{
 window.preparePurchaseHistoryPdf=preparePurchaseHistoryPdf;
 window.sharePreparedPdf=sharePreparedPdf;
 window.downloadPreparedPdf=downloadPreparedPdf;
+
+document.getElementById("historySearch")?.addEventListener("input",renderHistory);
+document.getElementById("historyFromDate")?.addEventListener("change",renderHistory);
+document.getElementById("historyToDate")?.addEventListener("change",renderHistory);
+document.getElementById("clearHistoryFiltersBtn")?.addEventListener("click",()=>{historySearch.value="";historyFromDate.value="";historyToDate.value="";renderHistory();});
+supplierName?.addEventListener("input",()=>{clearTimeout(supplierLookupTimer);supplierLookupTimer=setTimeout(()=>loadSupplierSuggestions(supplierName.value.trim()),180);});
+supplierName?.addEventListener("change",autofillSupplierFromDatabase);supplierName?.addEventListener("blur",autofillSupplierFromDatabase);
+loadNextOrderNumber();loadSupplierSuggestions("");

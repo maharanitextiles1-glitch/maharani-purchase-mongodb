@@ -1,8 +1,8 @@
 
 from flask import Flask, render_template, request, jsonify, Response, send_from_directory
-from pymongo import MongoClient, DESCENDING, ReturnDocument
+from pymongo import MongoClient, ReturnDocument, DESCENDING
 from bson import ObjectId
-import gridfs, os, json
+import gridfs, os, json, re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -118,243 +118,124 @@ def get_purchase(purchase_id):
 @app.route("/api/purchases", methods=["POST"])
 def create_purchase():
     if db is None:
-        return jsonify({"error": "MongoDB not configured"}), 503
+        return jsonify({"error":"MongoDB Atlas is not connected. Add MONGODB_URI."}),503
 
-    data = request.get_json(silent=True) or {}
+    supplier_name = request.form.get("supplier_name","").strip()
+    supplier_place = request.form.get("supplier_place","").strip()
+    purchase_date = request.form.get("purchase_date","").strip()
+    bill_number = request.form.get("bill_number","").strip()
+    transport_method = request.form.get("transport_method","").strip()
+    ordered_by = request.form.get("ordered_by","").strip()
 
-    supplier_name = (data.get("supplier_name") or "").strip()
-    supplier_place = (data.get("supplier_place") or "").strip()
-    purchase_date = (data.get("purchase_date") or "").strip()
-    transport_method = (data.get("transport_method") or "").strip()
-    ordered_by = (data.get("ordered_by") or "").strip()
-    items = data.get("items") or []
+    if not supplier_name: return jsonify({"error":"Supplier / party name is required"}),400
+    if not purchase_date: return jsonify({"error":"Purchase date is required"}),400
 
-    # -----------------------------
-    # VALIDATION
-    # -----------------------------
+    try:
+        items = json.loads(request.form.get("items","[]"))
+    except:
+        return jsonify({"error":"Invalid items data"}),400
+    if not items: return jsonify({"error":"Add at least one product"}),400
 
-    if not supplier_name:
-        return jsonify({
-            "error": "Supplier / party name is required"
-        }), 400
+    total_quantity,total_meter,grand_total = 0,0.0,0.0
+    normalized=[]
 
-    if not purchase_date:
-        return jsonify({
-            "error": "Purchase date is required"
-        }), 400
+    for index,item in enumerate(items):
+        name = str(item.get("name","")).strip()
+        qty = int(float(item.get("quantity",0) or 0))
+        meter = float(item.get("meterQuantity",0) or 0)
+        price = float(item.get("purchasePrice",0) or 0)
+        method = str(item.get("pricingMethod","")).strip()
+        pct = float(item.get("pricingPercent",0) or 0)
+        mrp = float(item.get("mrp",0) or 0)
+        discount_type = str(item.get("discountType","percentage") or "percentage").strip()
+        disc = float(item.get("discountValue", item.get("discountPercent",0)) or 0)
 
-    if not isinstance(items, list) or len(items) == 0:
-        return jsonify({
-            "error": "At least one product is required"
-        }), 400
+        if not name: return jsonify({"error":f"Product name missing for item {index+1}"}),400
+        if qty<=0 and meter<=0: return jsonify({"error":f"Enter quantity or meter quantity for {name}"}),400
+        if disc < 0:
+            return jsonify({"error":f"Discount cannot be negative for {name}"}),400
+        if discount_type == "percentage" and disc > 100:
+            return jsonify({"error":f"Discount percentage must be between 0 and 100 for {name}"}),400
 
+        if mrp<=0 and price>0 and pct>0:
+            if method=="markup": mrp = price*(1+pct/100)
+            elif method=="margin" and pct<100: mrp = price/(1-pct/100)
+            elif method=="markdown": mrp = price*(1-pct/100)
 
-    # =====================================================
-    # MONTHLY ORDER NUMBER
-    # =====================================================
-    # August: 1, 2, 3, 4...
-    # September: starts again from 1
-    #
-    # If Order 2 is deleted, the next order is still 3.
-    # =====================================================
+        if mrp > 0:
+            selling = max(mrp - disc, 0) if discount_type == "rupees" else mrp*(1-disc/100)
+        else:
+            selling = 0
+        units = qty if qty>0 else meter
+        line_total = units*price
 
+        total_quantity += qty
+        total_meter += meter
+        grand_total += line_total
+
+        up = request.files.get(f"image_{index}")
+        cam = request.files.get(f"camera_{index}")
+        selected = up if up and up.filename else cam
+        image_id = save_image(selected)
+
+        normalized.append({
+            "product_name":name,
+            "subcategory":str(item.get("subcategory","")).strip(),
+            "brand_name":str(item.get("brandName","")).strip(),
+            "size_value":str(item.get("sizeValue","")).strip(),
+            "quantity":qty,
+            "meter_quantity":meter,
+            "purchase_price":price,
+            "pricing_method":method,
+            "pricing_percent":pct,
+            "mrp":mrp,
+            "discount_type":discount_type,
+            "discount_value":disc,
+            "discount_percent":disc if discount_type == "percentage" else 0,
+            "selling_price":selling,
+            "line_total":line_total,
+            "notes":str(item.get("notes","")).strip(),
+            "image_file_id":image_id
+        })
+
+    # Monthly permanent sequential order number.
+    # Deleted order numbers are never reused within the same month.
+    # A new calendar month automatically starts again from 1.
     india_now = datetime.now(ZoneInfo("Asia/Kolkata"))
     month_key = india_now.strftime("%Y-%m")
 
     counter = db.counters.find_one_and_update(
-        {
-            "_id": f"purchase_order_{month_key}"
-        },
-        {
-            "$inc": {
-                "seq": 1
-            }
-        },
+        {"_id": f"purchase_order_{month_key}"},
+        {"$inc": {"seq": 1}},
         upsert=True,
         return_document=ReturnDocument.AFTER
     )
-
     order_number = int(counter.get("seq", 1))
-
-
-    # =====================================================
-    # CREATE PURCHASE
-    # =====================================================
+    bill_number = str(order_number)
 
     purchase = {
-        "order_number": order_number,
-        "order_month": month_key,
-
-        "supplier_name": supplier_name,
-        "supplier_place": supplier_place,
-        "purchase_date": purchase_date,
-        "transport_method": transport_method,
-        "ordered_by": ordered_by,
-
-        "total_quantity": 0,
-        "total_meter": 0,
-        "grand_total": 0,
-
-        "created_at": datetime.utcnow()
+        "order_number":order_number,
+        "order_month":month_key,
+        "supplier_name":supplier_name,
+        "supplier_place":supplier_place,
+        "purchase_date":purchase_date,
+        "bill_number":bill_number,
+        "transport_method":transport_method,
+        "ordered_by":ordered_by,
+        "total_quantity":total_quantity,
+        "total_meter":total_meter,
+        "grand_total":grand_total,
+        "created_at":datetime.utcnow()
     }
 
+    purchase_id = db.purchases.insert_one(purchase).inserted_id
+    for item in normalized:
+        item["purchase_id"] = purchase_id
+    db.purchase_items.insert_many(normalized)
 
-    # =====================================================
-    # SAVE PURCHASE
-    # =====================================================
-
-    result = db.purchases.insert_one(purchase)
-
-    purchase_id = result.inserted_id
-
-
-    # =====================================================
-    # SAVE PRODUCTS
-    # =====================================================
-
-    total_quantity = 0
-    total_meter = 0
-    grand_total = 0
-
-    for item in items:
-
-        product_name = (item.get("name") or "").strip()
-        subcategory = (item.get("subcategory") or "").strip()
-        brand_name = (item.get("brandName") or "").strip()
-        size_value = (item.get("sizeValue") or "").strip()
-
-        quantity = int(float(item.get("quantity", 0) or 0))
-        meter_quantity = float(
-            item.get("meterQuantity", 0) or 0
-        )
-
-        purchase_price = float(
-            item.get("purchasePrice", 0) or 0
-        )
-
-        pricing_method = (
-            item.get("pricingMethod") or ""
-        ).strip()
-
-        pricing_percent = float(
-            item.get("pricingPercent", 0) or 0
-        )
-
-        mrp = float(
-            item.get("mrp", 0) or 0
-        )
-
-        discount_type = (
-            item.get("discountType") or "percentage"
-        ).strip()
-
-        discount_value = float(
-            item.get("discountValue", 0) or 0
-        )
-
-        notes = (
-            item.get("notes") or ""
-        ).strip()
-
-
-        # Quantity OR meter is used for purchase total
-
-        units = (
-            quantity
-            if quantity > 0
-            else meter_quantity
-        )
-
-        line_total = units * purchase_price
-
-
-        # Selling price calculation
-
-        if mrp > 0:
-
-            if discount_type == "rupees":
-
-                selling_price = max(
-                    mrp - discount_value,
-                    0
-                )
-
-            else:
-
-                selling_price = (
-                    mrp *
-                    (1 - discount_value / 100)
-                )
-
-        else:
-
-            selling_price = 0
-
-
-        product = {
-
-            "purchase_id": purchase_id,
-
-            "product_name": product_name,
-            "subcategory": subcategory,
-            "brand_name": brand_name,
-            "size_value": size_value,
-
-            "quantity": quantity,
-            "meter_quantity": meter_quantity,
-
-            "purchase_price": purchase_price,
-
-            "pricing_method": pricing_method,
-            "pricing_percent": pricing_percent,
-
-            "mrp": mrp,
-
-            "discount_type": discount_type,
-            "discount_value": discount_value,
-
-            "selling_price": selling_price,
-
-            "line_total": line_total,
-
-            "notes": notes
-        }
-
-        db.purchase_items.insert_one(product)
-
-        total_quantity += quantity
-        total_meter += meter_quantity
-        grand_total += line_total
-
-
-    # =====================================================
-    # UPDATE PURCHASE TOTALS
-    # =====================================================
-
-    db.purchases.update_one(
-        {
-            "_id": purchase_id
-        },
-        {
-            "$set": {
-                "total_quantity": total_quantity,
-                "total_meter": total_meter,
-                "grand_total": grand_total
-            }
-        }
-    )
-
-
-    # =====================================================
-    # RESPONSE
-    # =====================================================
-
-    return jsonify({
-        "success": True,
-        "purchase_id": str(purchase_id),
-        "order_number": order_number,
-        "message": "Purchase saved successfully"
-    }), 201
+    return jsonify({"success":True,"purchase_id":str(purchase_id),"order_number":order_number,
+                    "total_quantity":total_quantity,"total_meter":total_meter,
+                    "grand_total":grand_total}),201
 
 
 @app.route("/api/purchases/<purchase_id>", methods=["PUT"])
@@ -778,31 +659,51 @@ def purchase_history_pdf_safe():
 @app.route("/api/meta/next-order-number")
 def next_order_number():
     if db is None:
-        return jsonify({"error": "MongoDB not configured"}), 503
-
+        return jsonify({"error":"MongoDB not configured"}),503
     india_now = datetime.now(ZoneInfo("Asia/Kolkata"))
     month_key = india_now.strftime("%Y-%m")
-
-    counter = db.counters.find_one(
-        {"_id": f"purchase_order_{month_key}"}
-    )
-
-    if counter:
-        next_no = int(counter.get("seq", 0)) + 1
-    else:
-        next_no = 1
-
-    return jsonify({
-        "next_order_number": next_no,
-        "month": month_key
-    })
+    counter = db.counters.find_one({"_id": f"purchase_order_{month_key}"})
+    next_no = int(counter.get("seq", 0)) + 1 if counter else 1
+    return jsonify({"next_order_number":next_no,"month":month_key})
 
 @app.route("/api/suppliers")
 def supplier_suggestions():
-    q=(request.args.get("q") or "").strip(); exact=request.args.get("exact")=="1"; match={}
-    if q: match["supplier_name"]={"$regex":("^"+re.escape(q)+"$") if exact else ("^"+re.escape(q)),"$options":"i"}
-    pipeline=[{"$match":match},{"$sort":{"created_at":-1}},{"$group":{"_id":{"$toLower":"$supplier_name"},"supplier_name":{"$first":"$supplier_name"},"supplier_place":{"$first":"$supplier_place"},"transport_method":{"$first":"$transport_method"},"ordered_by":{"$first":"$ordered_by"}}},{"$sort":{"supplier_name":1}},{"$limit":20},{"$project":{"_id":0}}]
-    return jsonify(list(db.purchases.aggregate(pipeline)))
+    if db is None:
+        return jsonify({"error":"MongoDB not configured"}),503
+
+    q = (request.args.get("q") or "").strip()
+    exact = request.args.get("exact") == "1"
+    query = {"supplier_name":{"$exists":True,"$ne":None}}
+
+    if q:
+        safe_q = re.escape(q)
+        query["supplier_name"] = {
+            "$regex": f"^{safe_q}$" if exact else f"^{safe_q}",
+            "$options":"i"
+        }
+
+    rows = db.purchases.find(
+        query,
+        {"supplier_name":1,"supplier_place":1,"transport_method":1,"ordered_by":1,"created_at":1}
+    ).sort("created_at", DESCENDING)
+
+    suppliers = {}
+    for row in rows:
+        name = (row.get("supplier_name") or "").strip()
+        if not name:
+            continue
+        key = name.lower()
+        if key not in suppliers:
+            suppliers[key] = {
+                "supplier_name":name,
+                "supplier_place":row.get("supplier_place") or "",
+                "transport_method":row.get("transport_method") or "",
+                "ordered_by":row.get("ordered_by") or ""
+            }
+        if len(suppliers) >= 20:
+            break
+
+    return jsonify(sorted(suppliers.values(), key=lambda x:x["supplier_name"].lower()))
 
 @app.route("/api/purchases/search-index")
 def purchase_search_index():

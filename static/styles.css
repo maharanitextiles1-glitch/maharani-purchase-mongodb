@@ -668,3 +668,41 @@ button {
     grid-template-columns:minmax(0,1fr);
   }
 }
+
+/* Purchase History: selection, view and icon actions */
+.history-row.history-row-with-order,
+.history-row.history-header-row{
+  grid-template-columns:42px minmax(75px,.65fr) minmax(160px,1.6fr) minmax(120px,1fr) minmax(130px,1fr) minmax(110px,.9fr) minmax(270px,2fr);
+  align-items:center;
+}
+.history-header-row{
+  font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
+  opacity:.7;padding-top:10px;padding-bottom:10px;
+}
+.history-select-cell{display:flex;align-items:center;justify-content:center}
+.history-select-cell input{width:18px;height:18px;cursor:pointer;accent-color:#8d1738}
+.history-actions{display:flex;gap:7px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+.icon-action{
+  border:1px solid #ddd;background:#fff;border-radius:9px;padding:8px 10px;cursor:pointer;
+  font:inherit;font-size:12px;font-weight:700;display:inline-flex;gap:5px;align-items:center;
+}
+.icon-action:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.08)}
+.icon-action.danger{border-color:#f0c9c9}
+.selection-count{font-size:12px;font-weight:800;white-space:nowrap}
+.view-purchase-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:20px}
+.view-purchase-grid>div{padding:12px;border:1px solid #eee;border-radius:10px}
+.view-purchase-grid span{display:block;font-size:11px;opacity:.65;margin-bottom:4px}
+.view-product-card{display:grid;grid-template-columns:90px repeat(3,minmax(0,1fr));gap:10px;padding:12px;border:1px solid #eee;border-radius:12px;margin:10px 0;align-items:center}
+.view-product-card img{width:80px;height:80px;object-fit:cover;border-radius:9px}
+.view-product-card small{display:block;margin-top:3px;opacity:.7}
+@media(max-width:760px){
+  .history-header-row{display:none!important}
+  .history-row.history-row-with-order{grid-template-columns:32px 1fr 1fr;gap:10px}
+  .history-select-cell{grid-row:1 / span 3;align-self:start;padding-top:4px}
+  .history-actions{grid-column:2 / -1;justify-content:flex-start}
+  .icon-action{padding:8px 9px}
+  .icon-action span{display:none}
+  .view-purchase-grid{grid-template-columns:1fr 1fr}
+  .view-product-card{grid-template-columns:70px 1fr}
+  .view-product-card img{width:64px;height:64px}
+}

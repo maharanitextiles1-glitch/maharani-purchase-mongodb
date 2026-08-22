@@ -235,14 +235,12 @@ function renderHistory(){
     if(from && date<from) return false;
     if(to && date>to) return false;
     if(!q) return true;
-
     const hay=[
       p.order_number,p.bill_number,p.supplier_name,p.supplier_place,
       p.purchase_date,formatDisplayDate(p.purchase_date),
       p.transport_method,p.ordered_by,p.grand_total,
       ...(p.search_terms||[])
     ].join(" ").toLowerCase();
-
     return hay.includes(q);
   });
 
@@ -254,8 +252,21 @@ function renderHistory(){
     return;
   }
 
-  historyList.innerHTML=filtered.map(p=>`
+  historyList.innerHTML=`
+    <div class="history-row history-header-row">
+      <div class="history-select-cell">
+        <input type="checkbox" id="selectAllHistory" aria-label="Select all purchases"
+          ${filtered.length && filtered.every(p=>selectedPurchaseIds.has(p.id)) ? "checked" : ""}>
+      </div>
+      <div>Order No.</div><div>Supplier</div><div>Date</div><div>Purchased</div><div>Total</div><div>Actions</div>
+    </div>
+  `+filtered.map(p=>`
     <div class="history-row history-row-with-order">
+      <div class="history-select-cell">
+        <input type="checkbox" class="history-select" data-id="${p.id}" aria-label="Select order ${esc(p.order_number||"")}"
+          ${selectedPurchaseIds.has(p.id) ? "checked" : ""}>
+      </div>
+
       <div class="history-order">
         <span class="history-mobile-label">Order No.</span>
         <strong>#${esc(p.order_number||p.bill_number||"—")}</strong>
@@ -284,12 +295,67 @@ function renderHistory(){
       </div>
 
       <div class="history-actions">
-        <button class="secondary" onclick="editPurchase('${p.id}')">Edit</button>
-        <button class="secondary" onclick="printPurchaseById('${p.id}')">Print</button>
-        <button class="secondary danger" onclick="deletePurchase('${p.id}')">Delete</button>
+        <button class="icon-action view-action" title="View" aria-label="View" onclick="viewPurchase('${p.id}')">👁 <span>View</span></button>
+        <button class="icon-action" title="Edit" aria-label="Edit" onclick="editPurchase('${p.id}')">✏️ <span>Edit</span></button>
+        <button class="icon-action" title="Print" aria-label="Print" onclick="printPurchaseById('${p.id}')">🖨️ <span>Print</span></button>
+        <button class="icon-action danger" title="Delete" aria-label="Delete" onclick="deletePurchase('${p.id}')">🗑️ <span>Delete</span></button>
       </div>
     </div>
   `).join("");
+
+  document.querySelectorAll(".history-select").forEach(cb=>{
+    cb.addEventListener("change",()=>{
+      cb.checked ? selectedPurchaseIds.add(cb.dataset.id) : selectedPurchaseIds.delete(cb.dataset.id);
+      updateHistorySelectionCount();
+    });
+  });
+  document.getElementById("selectAllHistory")?.addEventListener("change",e=>{
+    filtered.forEach(p=>e.target.checked ? selectedPurchaseIds.add(p.id) : selectedPurchaseIds.delete(p.id));
+    renderHistory();
+    updateHistorySelectionCount();
+  });
+  updateHistorySelectionCount();
+}
+
+function updateHistorySelectionCount(){
+  const el=document.getElementById("historySelectionCount");
+  if(el) el.textContent=selectedPurchaseIds.size ? `${selectedPurchaseIds.size} selected` : "";
+}
+
+async function viewPurchase(id){
+  try{
+    const r=await fetch(`/api/purchases/${id}`,{cache:"no-store"});
+    const p=await r.json();
+    if(!r.ok) throw new Error(p.error||"Could not load purchase.");
+    currentPurchase=p;
+    modalTitle.textContent=`Order #${p.order_number||p.bill_number||"—"}`;
+    modalContent.innerHTML=buildPurchaseDetailHtml(p);
+    detailModal.classList.add("show");
+  }catch(e){toast(e.message);}
+}
+
+function buildPurchaseDetailHtml(p){
+  const items=(p.items||[]).map((it,i)=>`
+    <div class="view-product-card">
+      ${it.image_url?`<img src="${esc(it.image_url)}" alt="${esc(it.product_name||it.name||"Product")}">`:""}
+      <div><strong>${i+1}. ${esc(it.product_name||it.name||"Product")}</strong>
+      <small>${esc(it.subcategory||"")} ${it.brand_name?`• ${esc(it.brand_name)}`:""}</small></div>
+      <div><b>Size:</b> ${esc(it.size_value||"—")}</div>
+      <div><b>Qty:</b> ${it.quantity||0} pcs</div>
+      <div><b>Meter:</b> ${fmt(it.meter_quantity||0)} m</div>
+      <div><b>Purchase Rate:</b> ${money(it.purchase_price||0)}</div>
+      <div><b>MRP:</b> ${money(it.mrp||0)}</div>
+      <div><b>Discount:</b> ${fmt(it.discount_value||it.discount_percent||0)} ${it.discount_type==="rupees"?"₹":"%"}</div>
+      <div><b>Notes:</b> ${esc(it.notes||"—")}</div>
+    </div>`).join("");
+  return `<div class="view-purchase-grid">
+    <div><span>Supplier / Party</span><strong>${esc(p.supplier_name||"—")}</strong></div>
+    <div><span>Place</span><strong>${esc(p.supplier_place||"—")}</strong></div>
+    <div><span>Date</span><strong>${esc(formatDisplayDate(p.purchase_date))}</strong></div>
+    <div><span>Transport</span><strong>${esc(p.transport_method||"—")}</strong></div>
+    <div><span>Ordered By</span><strong>${esc(p.ordered_by||"—")}</strong></div>
+    <div><span>Total</span><strong>${money(p.grand_total||0)}</strong></div>
+  </div><h3>Products</h3>${items||'<div class="empty-history">No products found.</div>'}`;
 }
 
 function clearForm(){productList.innerHTML="";["supplierName","supplierPlace","orderedBy"].forEach(id=>document.getElementById(id).value="");transportMethod.value="";purchaseDate.valueAsDate=new Date();updateSummary();loadNextOrderNumber();}

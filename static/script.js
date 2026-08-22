@@ -237,12 +237,14 @@ function renderHistory(){
     if(from && date<from) return false;
     if(to && date>to) return false;
     if(!q) return true;
+
     const hay=[
       p.order_number,p.bill_number,p.supplier_name,p.supplier_place,
       p.purchase_date,formatDisplayDate(p.purchase_date),
       p.transport_method,p.ordered_by,p.grand_total,
       ...(p.search_terms||[])
     ].join(" ").toLowerCase();
+
     return hay.includes(q);
   });
 
@@ -251,98 +253,92 @@ function renderHistory(){
 
   if(!filtered.length){
     historyList.innerHTML='<div class="empty-history">No purchases match your search or date filter.</div>';
+    updateHistorySelectionCount();
     return;
   }
 
+  const allSelected=filtered.every(p=>selectedPurchaseIds.has(String(p.id)));
+
   historyList.innerHTML=`
-    <div class="history-row history-header-row">
-      <div class="history-select-cell">
-        <input type="checkbox" id="selectAllHistory" aria-label="Select all purchases"
-         ${filtered.length && filtered.every(p=>selectedPurchaseIds.has(String(p.id))) ? "checked" : ""}>
-      </div>
-      <div>Order No.</div><div>Supplier</div><div>Date</div><div>Purchased</div><div>Total</div><div>Actions</div>
+    <div class="history-table-scroll">
+      <table class="purchase-history-table">
+        <thead>
+          <tr>
+            <th class="history-check-col">
+              <input type="checkbox" id="selectAllHistory" aria-label="Select all purchases" ${allSelected?"checked":""}>
+            </th>
+            <th>Order No.</th>
+            <th>Supplier / Party</th>
+            <th>Place</th>
+            <th>Date</th>
+            <th>Transport</th>
+            <th>Ordered By</th>
+            <th>Quantity</th>
+            <th>Meter</th>
+            <th>Purchase Total</th>
+            <th class="history-actions-col">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filtered.map(p=>{
+            const id=String(p.id);
+            return `
+              <tr>
+                <td class="history-check-col">
+                  <input type="checkbox" class="history-select" data-id="${esc(id)}"
+                    aria-label="Select order ${esc(p.order_number||p.bill_number||"")}"
+                    ${selectedPurchaseIds.has(id)?"checked":""}>
+                </td>
+                <td class="history-order-number"><strong>#${esc(p.order_number||p.bill_number||"—")}</strong></td>
+                <td>
+                  <strong>${esc(p.supplier_name||"—")}</strong>
+                </td>
+                <td>${esc(p.supplier_place||"—")}</td>
+                <td class="history-nowrap">${esc(formatDisplayDate(p.purchase_date))}</td>
+                <td>${esc(p.transport_method||"—")}</td>
+                <td>${esc(p.ordered_by||"—")}</td>
+                <td class="history-number">${p.total_quantity||0} pcs</td>
+                <td class="history-number">${fmt(p.total_meter||0)} m</td>
+                <td class="history-total">${money(p.grand_total||0)}</td>
+                <td class="history-actions-col">
+                  <div class="history-table-actions">
+                    <button type="button" class="history-action-btn view" onclick="viewPurchase('${id}')" title="View">👁 <span>View</span></button>
+                    <button type="button" class="history-action-btn edit" onclick="editPurchase('${id}')" title="Edit">✏️ <span>Edit</span></button>
+                    <button type="button" class="history-action-btn print" onclick="printPurchaseById('${id}')" title="Print">🖨️ <span>Print</span></button>
+                    <button type="button" class="history-action-btn delete" onclick="deletePurchase('${id}')" title="Delete">🗑️ <span>Delete</span></button>
+                  </div>
+                </td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
     </div>
-  `+filtered.map(p=>`
-    <div class="history-row history-row-with-order">
-      <div class="history-select-cell">
-        <input type="checkbox" class="history-select" data-id="${esc(String(p.id))}" aria-label="Select order ${esc(p.order_number||"")}"
-          ${selectedPurchaseIds.has(String(p.id)) ? "checked" : ""}>
-      </div>
+  `;
 
-      <div class="history-order">
-        <span class="history-mobile-label">Order No.</span>
-        <strong>#${esc(p.order_number||p.bill_number||"—")}</strong>
-      </div>
+  document.querySelectorAll(".history-select").forEach(cb=>{
+    cb.addEventListener("change",()=>{
+      const id=String(cb.dataset.id||"");
+      if(cb.checked) selectedPurchaseIds.add(id);
+      else selectedPurchaseIds.delete(id);
 
-      <div>
-        <span class="history-mobile-label">Supplier</span>
-        <strong>${esc(p.supplier_name)}</strong>
-        <small>${esc(p.supplier_place||"—")}</small>
-      </div>
-
-      <div>
-        <span class="history-mobile-label">Date</span>
-        <strong>${esc(formatDisplayDate(p.purchase_date))}</strong>
-        <small>${esc(p.transport_method||"No transport")}</small>
-      </div>
-
-      <div>
-        <span class="history-mobile-label">Purchased</span>
-        <strong>${p.total_quantity||0} pcs / ${fmt(p.total_meter||0)} m</strong>
-      </div>
-
-      <div>
-        <span class="history-mobile-label">Total</span>
-        <strong class="amount">${money(p.grand_total)}</strong>
-      </div>
-
-      <div class="history-actions">
-        <button class="icon-action view-action" title="View" aria-label="View" onclick="viewPurchase('${p.id}')">👁 <span>View</span></button>
-        <button class="icon-action" title="Edit" aria-label="Edit" onclick="editPurchase('${p.id}')">✏️ <span>Edit</span></button>
-        <button class="icon-action" title="Print" aria-label="Print" onclick="printPurchaseById('${p.id}')">🖨️ <span>Print</span></button>
-        <button class="icon-action danger" title="Delete" aria-label="Delete" onclick="deletePurchase('${p.id}')">🗑️ <span>Delete</span></button>
-      </div>
-    </div>
-  `).join("");
-
- document.querySelectorAll(".history-select").forEach(cb=>{
-  cb.addEventListener("change",()=>{
-    const id = String(cb.dataset.id || "");
-
-    if(cb.checked){
-      selectedPurchaseIds.add(id);
-    }else{
-      selectedPurchaseIds.delete(id);
-    }
-
-    const selectAll = document.getElementById("selectAllHistory");
-
-    if(selectAll){
-      selectAll.checked = filtered.every(
-        p => selectedPurchaseIds.has(String(p.id))
-      );
-    }
-
-    updateHistorySelectionCount();
-  });
-});
-
-document.getElementById("selectAllHistory")?.addEventListener("change",e=>{
-
-  filtered.forEach(p=>{
-
-    const id = String(p.id);
-
-    if(e.target.checked){
-      selectedPurchaseIds.add(id);
-    }else{
-      selectedPurchaseIds.delete(id);
-    }
-
+      const selectAll=document.getElementById("selectAllHistory");
+      if(selectAll){
+        selectAll.checked=filtered.every(p=>selectedPurchaseIds.has(String(p.id)));
+      }
+      updateHistorySelectionCount();
+    });
   });
 
-  renderHistory();
-});
+  document.getElementById("selectAllHistory")?.addEventListener("change",e=>{
+    filtered.forEach(p=>{
+      const id=String(p.id);
+      if(e.target.checked) selectedPurchaseIds.add(id);
+      else selectedPurchaseIds.delete(id);
+    });
+    renderHistory();
+  });
+
   updateHistorySelectionCount();
 }
 

@@ -4,3 +4,5 @@ pymongo[srv]==4.10.1
 gunicorn==23.0.0
 
 reportlab==4.2.5
+cloudinary==1.44.1
+Pillow==11.3.0

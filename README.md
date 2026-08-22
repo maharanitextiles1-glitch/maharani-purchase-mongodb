@@ -41,3 +41,33 @@ Replace your existing project files with these files while keeping `.git`, then:
 git add .
 git commit -m "Switch purchase manager to MongoDB Atlas"
 git push origin main
+
+
+## Separate Product Photo Storage (Cloudinary)
+
+This version stores purchase/product data in MongoDB Atlas and new product photos in Cloudinary.
+
+### Render environment variables
+
+Keep:
+- `MONGODB_URI`
+- `MONGODB_DB=maharani_purchase`
+
+Add:
+- `CLOUDINARY_URL`
+
+Get `CLOUDINARY_URL` from your Cloudinary account dashboard/API keys.
+
+### Existing photos
+
+Existing MongoDB GridFS photos remain readable. New photos are uploaded to Cloudinary.
+Deleting a purchase also attempts to delete its Cloudinary image.
+
+### Image optimization
+
+Common JPG/PNG/WEBP phone photos are resized to a maximum 1800px side and converted to optimized JPEG before upload.
+HEIC is sent directly to Cloudinary.
+
+### Security
+
+Do not commit `.env` or real credentials to Git.

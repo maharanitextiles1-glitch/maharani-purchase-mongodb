@@ -3,6 +3,9 @@ from flask import Flask, render_template, request, jsonify, Response, send_from_
 from pymongo import MongoClient, ReturnDocument, DESCENDING
 from bson import ObjectId
 import gridfs, os, json, re
+import cloudinary
+import cloudinary.uploader
+from PIL import Image, ImageOps
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -26,6 +29,12 @@ app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
 MONGODB_URI = os.environ.get("MONGODB_URI", "").strip()
 MONGODB_DB = os.environ.get("MONGODB_DB", "maharani_purchase").strip()
 ALLOWED_EXTENSIONS = {"jpg","jpeg","png","webp","heic"}
+
+# Product photos are stored separately in Cloudinary.
+# MongoDB stores only the Cloudinary URL/public_id.
+CLOUDINARY_URL = os.environ.get("CLOUDINARY_URL", "").strip()
+if CLOUDINARY_URL:
+    cloudinary.config(secure=True)
 
 client = MongoClient(MONGODB_URI) if MONGODB_URI else None
 db = client[MONGODB_DB] if client else None
@@ -53,21 +62,84 @@ def serialize_item(doc):
     d = dict(doc)
     d["id"] = str(d.pop("_id"))
     d["purchase_id"] = str(d["purchase_id"])
-    if isinstance(d.get("image_file_id"), ObjectId):
+
+    # New records: image_url is a Cloudinary HTTPS URL.
+    # Old records: keep GridFS compatibility so existing photos still display.
+    if d.get("image_url"):
+        d["image_url"] = d.get("image_url")
+    elif isinstance(d.get("image_file_id"), ObjectId):
         d["image_file_id"] = str(d["image_file_id"])
         d["image_url"] = f"/product-image/{d['image_file_id']}"
     else:
         d["image_url"] = None
+
     return d
 
+def _prepare_image_for_upload(file):
+    """Compress common phone images before cloud upload."""
+    filename = secure_filename(file.filename or "product.jpg")
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+    # Let Cloudinary handle HEIC directly.
+    if ext == "heic":
+        file.stream.seek(0)
+        return file.stream, filename
+
+    try:
+        file.stream.seek(0)
+        image = Image.open(file.stream)
+        image = ImageOps.exif_transpose(image)
+
+        # Limit very large phone photos while preserving useful product detail.
+        max_side = 1800
+        image.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
+
+        if image.mode not in ("RGB", "L"):
+            background = Image.new("RGB", image.size, "white")
+            if "A" in image.getbands():
+                background.paste(image, mask=image.getchannel("A"))
+            else:
+                background.paste(image)
+            image = background
+        elif image.mode == "L":
+            image = image.convert("RGB")
+
+        output = BytesIO()
+        image.save(output, format="JPEG", quality=82, optimize=True)
+        output.seek(0)
+        return output, Path(filename).stem + ".jpg"
+    except Exception:
+        file.stream.seek(0)
+        return file.stream, filename
+
+
 def save_image(file):
+    """Upload a product photo to Cloudinary and return URL/public_id metadata."""
     if not file or not file.filename or not allowed_file(file.filename):
         return None
-    if fs is None:
-        return None
-    return fs.put(file.stream, filename=secure_filename(file.filename),
-                  content_type=file.mimetype or "application/octet-stream",
-                  uploaded_at=datetime.utcnow())
+
+    if not CLOUDINARY_URL:
+        raise RuntimeError("CLOUDINARY_URL is not configured on the server.")
+
+    stream, filename = _prepare_image_for_upload(file)
+
+    result = cloudinary.uploader.upload(
+        stream,
+        folder="maharani-purchase-manager/products",
+        resource_type="image",
+        use_filename=True,
+        unique_filename=True,
+        overwrite=False,
+        filename_override=filename,
+    )
+
+    return {
+        "image_url": result.get("secure_url"),
+        "image_public_id": result.get("public_id"),
+        "image_width": result.get("width"),
+        "image_height": result.get("height"),
+        "image_bytes": result.get("bytes"),
+    }
 
 @app.route("/")
 def home():
@@ -176,7 +248,10 @@ def create_purchase():
         up = request.files.get(f"image_{index}")
         cam = request.files.get(f"camera_{index}")
         selected = up if up and up.filename else cam
-        image_id = save_image(selected)
+        try:
+            image_meta = save_image(selected) if selected and selected.filename else None
+        except Exception as e:
+            return jsonify({"error": f"Photo upload failed for {name}: {str(e)}"}), 502
 
         normalized.append({
             "product_name":name,
@@ -195,7 +270,11 @@ def create_purchase():
             "selling_price":selling,
             "line_total":line_total,
             "notes":str(item.get("notes","")).strip(),
-            "image_file_id":image_id
+            "image_url": image_meta.get("image_url") if image_meta else None,
+            "image_public_id": image_meta.get("image_public_id") if image_meta else None,
+            "image_width": image_meta.get("image_width") if image_meta else None,
+            "image_height": image_meta.get("image_height") if image_meta else None,
+            "image_bytes": image_meta.get("image_bytes") if image_meta else None
         })
 
     # Monthly permanent sequential order number.
@@ -312,6 +391,11 @@ def update_purchase(purchase_id):
             "selling_price": selling_price,
             "line_total": line_total,
             "notes": (item.get("notes") or "").strip(),
+            "image_url": item.get("image_url") or None,
+            "image_public_id": item.get("image_public_id") or None,
+            "image_width": item.get("image_width") or None,
+            "image_height": item.get("image_height") or None,
+            "image_bytes": item.get("image_bytes") or None,
         })
 
         total_quantity += quantity
@@ -348,10 +432,21 @@ def delete_purchase(purchase_id):
 
     items = list(db.purchase_items.find({"purchase_id":oid}))
     for item in items:
+        # New Cloudinary photo
+        public_id = item.get("image_public_id")
+        if public_id and CLOUDINARY_URL:
+            try:
+                cloudinary.uploader.destroy(public_id, resource_type="image", invalidate=True)
+            except Exception:
+                pass
+
+        # Legacy GridFS photo
         image_id = item.get("image_file_id")
-        if isinstance(image_id,ObjectId):
-            try: fs.delete(image_id)
-            except: pass
+        if isinstance(image_id, ObjectId) and fs is not None:
+            try:
+                fs.delete(image_id)
+            except Exception:
+                pass
 
     db.purchase_items.delete_many({"purchase_id":oid})
     deleted = db.purchases.delete_one({"_id":oid}).deleted_count

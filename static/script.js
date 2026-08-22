@@ -3,7 +3,9 @@ let currentPurchase=null;
 const money=v=>new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",maximumFractionDigits:2}).format(Number(v)||0);
 const fmt=v=>new Intl.NumberFormat("en-IN",{maximumFractionDigits:2}).format(Number(v)||0);
 const formatDisplayDate=value=>{if(!value)return "—";const p=String(value).slice(0,10).split("-");return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:String(value);};
-let allPurchaseHistory=[],supplierLookupTimer=null;
+let allPurchaseHistory = [];
+let supplierLookupTimer = null;
+const selectedPurchaseIds = new Set();
 
 const productList=document.getElementById("productList");
 const template=document.getElementById("productTemplate");
@@ -256,15 +258,15 @@ function renderHistory(){
     <div class="history-row history-header-row">
       <div class="history-select-cell">
         <input type="checkbox" id="selectAllHistory" aria-label="Select all purchases"
-          ${filtered.length && filtered.every(p=>selectedPurchaseIds.has(p.id)) ? "checked" : ""}>
+         ${filtered.length && filtered.every(p=>selectedPurchaseIds.has(String(p.id))) ? "checked" : ""}>
       </div>
       <div>Order No.</div><div>Supplier</div><div>Date</div><div>Purchased</div><div>Total</div><div>Actions</div>
     </div>
   `+filtered.map(p=>`
     <div class="history-row history-row-with-order">
       <div class="history-select-cell">
-        <input type="checkbox" class="history-select" data-id="${p.id}" aria-label="Select order ${esc(p.order_number||"")}"
-          ${selectedPurchaseIds.has(p.id) ? "checked" : ""}>
+        <input type="checkbox" class="history-select" data-id="${esc(String(p.id))}" aria-label="Select order ${esc(p.order_number||"")}"
+          ${selectedPurchaseIds.has(String(p.id)) ? "checked" : ""}>
       </div>
 
       <div class="history-order">
@@ -303,17 +305,44 @@ function renderHistory(){
     </div>
   `).join("");
 
-  document.querySelectorAll(".history-select").forEach(cb=>{
-    cb.addEventListener("change",()=>{
-      cb.checked ? selectedPurchaseIds.add(cb.dataset.id) : selectedPurchaseIds.delete(cb.dataset.id);
-      updateHistorySelectionCount();
-    });
-  });
-  document.getElementById("selectAllHistory")?.addEventListener("change",e=>{
-    filtered.forEach(p=>e.target.checked ? selectedPurchaseIds.add(p.id) : selectedPurchaseIds.delete(p.id));
-    renderHistory();
+ document.querySelectorAll(".history-select").forEach(cb=>{
+  cb.addEventListener("change",()=>{
+    const id = String(cb.dataset.id || "");
+
+    if(cb.checked){
+      selectedPurchaseIds.add(id);
+    }else{
+      selectedPurchaseIds.delete(id);
+    }
+
+    const selectAll = document.getElementById("selectAllHistory");
+
+    if(selectAll){
+      selectAll.checked = filtered.every(
+        p => selectedPurchaseIds.has(String(p.id))
+      );
+    }
+
     updateHistorySelectionCount();
   });
+});
+
+document.getElementById("selectAllHistory")?.addEventListener("change",e=>{
+
+  filtered.forEach(p=>{
+
+    const id = String(p.id);
+
+    if(e.target.checked){
+      selectedPurchaseIds.add(id);
+    }else{
+      selectedPurchaseIds.delete(id);
+    }
+
+  });
+
+  renderHistory();
+});
   updateHistorySelectionCount();
 }
 
@@ -322,17 +351,17 @@ function updateHistorySelectionCount(){
   if(el) el.textContent=selectedPurchaseIds.size ? `${selectedPurchaseIds.size} selected` : "";
 }
 
-async function viewPurchase(id){
-  try{
-    const r=await fetch(`/api/purchases/${id}`,{cache:"no-store"});
-    const p=await r.json();
-    if(!r.ok) throw new Error(p.error||"Could not load purchase.");
-    currentPurchase=p;
-    modalTitle.textContent=`Order #${p.order_number||p.bill_number||"—"}`;
-    modalContent.innerHTML=buildPurchaseDetailHtml(p);
-    detailModal.classList.add("show");
-  }catch(e){toast(e.message);}
-}
+// async function viewPurchase(id){
+//   try{
+//     const r=await fetch(`/api/purchases/${id}`,{cache:"no-store"});
+//     const p=await r.json();
+//     if(!r.ok) throw new Error(p.error||"Could not load purchase.");
+//     currentPurchase=p;
+//     modalTitle.textContent=`Order #${p.order_number||p.bill_number||"—"}`;
+//     modalContent.innerHTML=buildPurchaseDetailHtml(p);
+//     detailModal.classList.add("show");
+//   }catch(e){toast(e.message);}
+// }
 
 function buildPurchaseDetailHtml(p){
   const items=(p.items||[]).map((it,i)=>`
@@ -588,7 +617,11 @@ function printPurchase(){
       <td>${fmt(i.meter_quantity || 0)} m</td>
       <td>${money(i.purchase_price || 0)}</td>
       <td>${money(i.mrp || 0)}</td>
-      <td>${fmt(i.discount_percent || 0)}%</td>
+      <td>${
+  i.discount_type === "rupees"
+    ? money(i.discount_value || 0)
+    : `${fmt(i.discount_value ?? i.discount_percent ?? 0)}%`
+}</td>
       <td>${money(i.selling_price || 0)}</td>
       <td>${money(i.line_total || 0)}</td>
       <td>${esc(i.notes || "")}</td>
@@ -604,7 +637,11 @@ function printPurchase(){
     `Transport: ${p.transport_method || "—"}\n` +
     `Ordered By: ${p.ordered_by || "—"}\n\n` +
     (p.items || []).map((i, n) =>
-      `${n + 1}. ${i.product_name || ""} | Qty ${i.quantity || 0} | Meter ${fmt(i.meter_quantity || 0)} | Purchase Rate ${money(i.purchase_price || 0)} | MRP ${money(i.mrp || 0)} | Discount ${fmt(i.discount_percent || 0)}% | Selling ${money(i.selling_price || 0)} | Total ${money(i.line_total || 0)}`
+      `${n + 1}. ${i.product_name || ""} | Qty ${i.quantity || 0} | Meter ${fmt(i.meter_quantity || 0)} | Purchase Rate ${money(i.purchase_price || 0)} | MRP ${money(i.mrp || 0)} | Discount ${
+  i.discount_type === "rupees"
+    ? money(i.discount_value || 0)
+    : `${fmt(i.discount_value ?? i.discount_percent ?? 0)}%`
+} | Selling ${money(i.selling_price || 0)} | Total ${money(i.line_total || 0)}`
     ).join("\n") +
     `\n\nGrand Total: ${money(p.grand_total || 0)}`
   );

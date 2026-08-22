@@ -1,19 +1,27 @@
+const CACHE_NAME = "maharani-purchase-app-v5";
 
-const CACHE_NAME = "maharani-purchase-app-v4";
 const APP_SHELL = [
   "/",
   "/static/styles.css",
   "/static/script.js",
-  "/static/icon-192.png",
-  "/static/icon-512.png",
-  "/static/apple-touch-icon.png"
+  "/static/icon-192-v2.png",
+  "/static/icon-512-v2.png",
+  "/static/apple-touch-icon-v2.png"
 ];
 
 self.addEventListener("install", event => {
   self.skipWaiting();
+
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache =>
-      Promise.allSettled(APP_SHELL.map(url => cache.add(url)))
+      Promise.allSettled(
+        APP_SHELL.map(url =>
+          fetch(url, { cache: "reload" })
+            .then(response => {
+              if (response.ok) return cache.put(url, response);
+            })
+        )
+      )
     )
   );
 });
@@ -21,47 +29,53 @@ self.addEventListener("install", event => {
 self.addEventListener("activate", event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
+      .then(keys =>
+        Promise.all(
+          keys
+            .filter(key => key !== CACHE_NAME)
+            .map(key => caches.delete(key))
+        )
+      )
       .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener("fetch", event => {
-  const req = event.request;
-  if (req.method !== "GET") return;
+  const request = event.request;
 
-  const url = new URL(req.url);
+  if (request.method !== "GET") return;
 
-  // Never cache API/database/PDF requests. Always use current server data.
+  const url = new URL(request.url);
+
+  // Database, PDF and API data must always come from the server.
   if (url.pathname.startsWith("/api/")) {
-    event.respondWith(fetch(req));
+    event.respondWith(fetch(request));
     return;
   }
 
-  // Network-first for HTML and JS/CSS so deployments update quickly.
-  if (req.mode === "navigate" ||
-      url.pathname.endsWith(".js") ||
-      url.pathname.endsWith(".css")) {
+  // Always try the network first for the app page and static files.
+  // This prevents old CSS, JS and images from remaining after a deployment.
+  if (
+    request.mode === "navigate" ||
+    url.pathname.startsWith("/static/")
+  ) {
     event.respondWith(
-      fetch(req)
+      fetch(request, { cache: "no-store" })
         .then(response => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(req, copy));
+          if (response && response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+          }
           return response;
         })
-        .catch(() => caches.match(req).then(r => r || caches.match("/")))
+        .catch(() =>
+          caches.match(request).then(cached => cached || caches.match("/"))
+        )
     );
     return;
   }
 
-  // Cache-first for icons/static images.
   event.respondWith(
-    caches.match(req).then(cached =>
-      cached || fetch(req).then(response => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(req, copy));
-        return response;
-      })
-    )
+    fetch(request).catch(() => caches.match(request))
   );
 });

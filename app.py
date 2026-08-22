@@ -813,8 +813,9 @@ def manifest():
 
 @app.route("/service-worker.js")
 def service_worker():
-    r=send_from_directory(BASE_DIR/"static","service-worker.js",mimetype="application/javascript")
-    r.headers["Service-Worker-Allowed"]="/"
+    r = send_from_directory(BASE_DIR/"static", "service-worker.js", mimetype="application/javascript")
+    r.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    r.headers["Service-Worker-Allowed"] = "/"
     return r
 
 if __name__=="__main__":

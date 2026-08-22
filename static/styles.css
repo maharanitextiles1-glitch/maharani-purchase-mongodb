@@ -1249,3 +1249,26 @@ button {
     grid-column:auto!important;
   }
 }
+
+
+/* PWA / installed application */
+.install-app-btn{
+  border:1px solid rgba(141,23,56,.25);
+}
+
+@media (display-mode: standalone){
+  body{
+    padding-top:env(safe-area-inset-top);
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+}
+
+@media(max-width:760px){
+  .topbar{
+    padding-left:max(12px, env(safe-area-inset-left));
+    padding-right:max(12px, env(safe-area-inset-right));
+  }
+  .install-app-btn{
+    width:100%;
+  }
+}

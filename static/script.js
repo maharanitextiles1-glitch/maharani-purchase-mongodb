@@ -351,42 +351,6 @@ function updateHistorySelectionCount(){
   if(el) el.textContent=selectedPurchaseIds.size ? `${selectedPurchaseIds.size} selected` : "";
 }
 
-// async function viewPurchase(id){
-//   try{
-//     const r=await fetch(`/api/purchases/${id}`,{cache:"no-store"});
-//     const p=await r.json();
-//     if(!r.ok) throw new Error(p.error||"Could not load purchase.");
-//     currentPurchase=p;
-//     modalTitle.textContent=`Order #${p.order_number||p.bill_number||"—"}`;
-//     modalContent.innerHTML=buildPurchaseDetailHtml(p);
-//     detailModal.classList.add("show");
-//   }catch(e){toast(e.message);}
-// }
-
-function buildPurchaseDetailHtml(p){
-  const items=(p.items||[]).map((it,i)=>`
-    <div class="view-product-card">
-      ${it.image_url?`<img src="${esc(it.image_url)}" alt="${esc(it.product_name||it.name||"Product")}">`:""}
-      <div><strong>${i+1}. ${esc(it.product_name||it.name||"Product")}</strong>
-      <small>${esc(it.subcategory||"")} ${it.brand_name?`• ${esc(it.brand_name)}`:""}</small></div>
-      <div><b>Size:</b> ${esc(it.size_value||"—")}</div>
-      <div><b>Qty:</b> ${it.quantity||0} pcs</div>
-      <div><b>Meter:</b> ${fmt(it.meter_quantity||0)} m</div>
-      <div><b>Purchase Rate:</b> ${money(it.purchase_price||0)}</div>
-      <div><b>MRP:</b> ${money(it.mrp||0)}</div>
-      <div><b>Discount:</b> ${fmt(it.discount_value||it.discount_percent||0)} ${it.discount_type==="rupees"?"₹":"%"}</div>
-      <div><b>Notes:</b> ${esc(it.notes||"—")}</div>
-    </div>`).join("");
-  return `<div class="view-purchase-grid">
-    <div><span>Supplier / Party</span><strong>${esc(p.supplier_name||"—")}</strong></div>
-    <div><span>Place</span><strong>${esc(p.supplier_place||"—")}</strong></div>
-    <div><span>Date</span><strong>${esc(formatDisplayDate(p.purchase_date))}</strong></div>
-    <div><span>Transport</span><strong>${esc(p.transport_method||"—")}</strong></div>
-    <div><span>Ordered By</span><strong>${esc(p.ordered_by||"—")}</strong></div>
-    <div><span>Total</span><strong>${money(p.grand_total||0)}</strong></div>
-  </div><h3>Products</h3>${items||'<div class="empty-history">No products found.</div>'}`;
-}
-
 function clearForm(){productList.innerHTML="";["supplierName","supplierPlace","orderedBy"].forEach(id=>document.getElementById(id).value="");transportMethod.value="";purchaseDate.valueAsDate=new Date();updateSummary();loadNextOrderNumber();}
 
 async function savePurchase(){
@@ -408,9 +372,85 @@ async function loadHistory(){
 }
 
 async function viewPurchase(id){
- const r=await fetch(`/api/purchases/${id}`),p=await r.json();if(!r.ok)return toast(p.error||"Could not open purchase.");currentPurchase=p;modalTitle.textContent=`Purchase ${p.id}`;
- modalContent.innerHTML=`<div class="meta-grid"><div><span>Supplier</span><strong>${esc(p.supplier_name)}</strong></div><div><span>Place</span><strong>${esc(p.supplier_place||"—")}</strong></div><div><span>Date</span><strong>${esc(formatDisplayDate(p.purchase_date))}</strong></div><div><span>Order No.</span><strong>${esc(p.order_number||p.bill_number||"—")}</strong></div><div><span>Transport</span><strong>${esc(p.transport_method||"—")}</strong></div><div><span>Ordered By</span><strong>${esc(p.ordered_by||"—")}</strong></div></div><div class="detail-list">${p.items.map(i=>`<div class="detail-item">${i.image_url?`<img src="${i.image_url}">`:`<div class="no-img">No image</div>`}<div><strong>${esc(i.product_name)}</strong><small>${esc(i.subcategory||"")} ${i.brand_name?"• "+esc(i.brand_name):""} ${i.size_value?"• "+esc(i.size_value):""}</small><small>Qty ${i.quantity||0} • Meter ${fmt(i.meter_quantity||0)} • Purchase ${money(i.purchase_price)}</small><small>${i.pricing_method?esc(i.pricing_method)+" "+fmt(i.pricing_percent)+"% • ":""}MRP ${money(i.mrp)} • Discount ${fmt(i.discount_percent)}% • Selling ${money(i.selling_price)}</small></div><strong>${money(i.line_total)}</strong></div>`).join("")}</div><div class="modal-total">${p.total_quantity||0} pcs • ${fmt(p.total_meter||0)} m • ${money(p.grand_total)}</div>`;
- detailModal.classList.add("show");
+  try{
+    const r=await fetch(`/api/purchases/${id}`,{cache:"no-store"});
+    const p=await r.json();
+
+    if(!r.ok){
+      return toast(p.error||"Could not open purchase.");
+    }
+
+    currentPurchase=p;
+    modalTitle.textContent=`Order #${p.order_number||p.bill_number||"—"}`;
+
+    const products=(p.items||[]).map(i=>{
+      const discountValue=Number(i.discount_value ?? i.discount_percent ?? 0)||0;
+      const discountText=i.discount_type==="rupees"
+        ? money(discountValue)
+        : `${fmt(discountValue)}%`;
+
+      return `
+        <div class="detail-item">
+          ${i.image_url
+            ? `<img src="${esc(i.image_url)}" alt="${esc(i.product_name||"Product")}">`
+            : `<div class="no-img">No image</div>`
+          }
+
+          <div>
+            <strong>${esc(i.product_name||"")}</strong>
+            <small>
+              ${esc(i.subcategory||"")}
+              ${i.brand_name ? " • "+esc(i.brand_name) : ""}
+              ${i.size_value ? " • "+esc(i.size_value) : ""}
+            </small>
+            <small>
+              Qty ${i.quantity||0}
+              • Meter ${fmt(i.meter_quantity||0)}
+              • Purchase Rate ${money(i.purchase_price||0)}
+            </small>
+            <small>
+              ${i.pricing_method
+                ? `${esc(i.pricing_method)} ${fmt(i.pricing_percent||0)}% • `
+                : ""
+              }
+              MRP ${money(i.mrp||0)}
+              • Discount ${discountText}
+              • Selling ${money(i.selling_price||0)}
+            </small>
+            ${i.notes ? `<small>Notes: ${esc(i.notes)}</small>` : ""}
+          </div>
+
+          <strong>${money(i.line_total||0)}</strong>
+        </div>
+      `;
+    }).join("");
+
+    modalContent.innerHTML=`
+      <div class="meta-grid">
+        <div><span>Order No.</span><strong>${esc(p.order_number||p.bill_number||"—")}</strong></div>
+        <div><span>Supplier</span><strong>${esc(p.supplier_name||"—")}</strong></div>
+        <div><span>Place</span><strong>${esc(p.supplier_place||"—")}</strong></div>
+        <div><span>Date</span><strong>${esc(formatDisplayDate(p.purchase_date))}</strong></div>
+        <div><span>Transport</span><strong>${esc(p.transport_method||"—")}</strong></div>
+        <div><span>Ordered By</span><strong>${esc(p.ordered_by||"—")}</strong></div>
+      </div>
+
+      <div class="detail-list">
+        ${products || '<div class="empty-history">No products found.</div>'}
+      </div>
+
+      <div class="modal-total">
+        ${p.total_quantity||0} pcs
+        • ${fmt(p.total_meter||0)} m
+        • ${money(p.grand_total||0)}
+      </div>
+    `;
+
+    detailModal.classList.add("show");
+  }catch(error){
+    console.error(error);
+    toast("Could not open purchase.");
+  }
 }
 
 async function printPurchaseById(id){
@@ -617,11 +657,7 @@ function printPurchase(){
       <td>${fmt(i.meter_quantity || 0)} m</td>
       <td>${money(i.purchase_price || 0)}</td>
       <td>${money(i.mrp || 0)}</td>
-      <td>${
-  i.discount_type === "rupees"
-    ? money(i.discount_value || 0)
-    : `${fmt(i.discount_value ?? i.discount_percent ?? 0)}%`
-}</td>
+      <td>${fmt(i.discount_percent || 0)}%</td>
       <td>${money(i.selling_price || 0)}</td>
       <td>${money(i.line_total || 0)}</td>
       <td>${esc(i.notes || "")}</td>
@@ -637,11 +673,7 @@ function printPurchase(){
     `Transport: ${p.transport_method || "—"}\n` +
     `Ordered By: ${p.ordered_by || "—"}\n\n` +
     (p.items || []).map((i, n) =>
-      `${n + 1}. ${i.product_name || ""} | Qty ${i.quantity || 0} | Meter ${fmt(i.meter_quantity || 0)} | Purchase Rate ${money(i.purchase_price || 0)} | MRP ${money(i.mrp || 0)} | Discount ${
-  i.discount_type === "rupees"
-    ? money(i.discount_value || 0)
-    : `${fmt(i.discount_value ?? i.discount_percent ?? 0)}%`
-} | Selling ${money(i.selling_price || 0)} | Total ${money(i.line_total || 0)}`
+      `${n + 1}. ${i.product_name || ""} | Qty ${i.quantity || 0} | Meter ${fmt(i.meter_quantity || 0)} | Purchase Rate ${money(i.purchase_price || 0)} | MRP ${money(i.mrp || 0)} | Discount ${fmt(i.discount_percent || 0)}% | Selling ${money(i.selling_price || 0)} | Total ${money(i.line_total || 0)}`
     ).join("\n") +
     `\n\nGrand Total: ${money(p.grand_total || 0)}`
   );

@@ -268,6 +268,7 @@ function renderHistory(){
               <input type="checkbox" id="selectAllHistory" aria-label="Select all purchases" ${allSelected?"checked":""}>
             </th>
             <th>Order No.</th>
+            <th class="history-view-col">View</th>
             <th>Supplier / Party</th>
             <th>Place</th>
             <th>Date</th>
@@ -290,6 +291,14 @@ function renderHistory(){
                     ${selectedPurchaseIds.has(id)?"checked":""}>
                 </td>
                 <td class="history-order-number"><strong>#${esc(p.order_number||p.bill_number||"—")}</strong></td>
+                <td class="history-view-col">
+                  <button type="button"
+                          class="history-view-btn"
+                          onclick="viewPurchase('${id}')"
+                          title="View Purchase">
+                    👁 <span>View</span>
+                  </button>
+                </td>
                 <td>
                   <strong>${esc(p.supplier_name||"—")}</strong>
                 </td>
@@ -302,7 +311,6 @@ function renderHistory(){
                 <td class="history-total">${money(p.grand_total||0)}</td>
                 <td class="history-actions-col">
                   <div class="history-table-actions">
-                    <button type="button" class="history-action-btn view" onclick="viewPurchase('${id}')" title="View">👁 <span>View</span></button>
                     <button type="button" class="history-action-btn edit" onclick="editPurchase('${id}')" title="Edit">✏️ <span>Edit</span></button>
                     <button type="button" class="history-action-btn print" onclick="printPurchaseById('${id}')" title="Print">🖨️ <span>Print</span></button>
                     <button type="button" class="history-action-btn delete" onclick="deletePurchase('${id}')" title="Delete">🗑️ <span>Delete</span></button>

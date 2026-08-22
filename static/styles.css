@@ -1272,3 +1272,83 @@ button {
     width:100%;
   }
 }
+
+
+/* =========================================================
+   PURCHASE HISTORY - DEDICATED VIEW COLUMN
+   ========================================================= */
+
+.history-view-col{
+  min-width:86px;
+  width:86px;
+  text-align:center!important;
+}
+
+.history-view-btn{
+  border:1px solid #d8c8ce;
+  background:#fff;
+  color:#8d1738;
+  border-radius:8px;
+  min-height:36px;
+  padding:7px 10px;
+  font:inherit;
+  font-size:11px;
+  font-weight:800;
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  white-space:nowrap;
+}
+
+.history-view-btn:hover{
+  background:#f8f2f4;
+}
+
+/* Mobile: keep Select, Order No. and View visible while table scrolls */
+@media(max-width:760px){
+  .purchase-history-table th:nth-child(1),
+  .purchase-history-table td:nth-child(1){
+    position:sticky;
+    left:0;
+    z-index:5;
+    background:#fff;
+  }
+
+  .purchase-history-table th:nth-child(2),
+  .purchase-history-table td:nth-child(2){
+    position:sticky;
+    left:42px;
+    z-index:5;
+    background:#fff;
+    min-width:78px;
+  }
+
+  .purchase-history-table th:nth-child(3),
+  .purchase-history-table td:nth-child(3){
+    position:sticky;
+    left:120px;
+    z-index:5;
+    background:#fff;
+    min-width:76px;
+    box-shadow:2px 0 4px rgba(0,0,0,.05);
+  }
+
+  .purchase-history-table thead th:nth-child(1),
+  .purchase-history-table thead th:nth-child(2),
+  .purchase-history-table thead th:nth-child(3){
+    background:#f8f5f6;
+    z-index:7;
+  }
+
+  .history-view-btn{
+    min-width:38px;
+    padding:7px;
+    font-size:15px;
+  }
+
+  .history-view-btn span{
+    display:none;
+  }
+}

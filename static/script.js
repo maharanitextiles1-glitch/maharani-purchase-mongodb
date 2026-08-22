@@ -727,7 +727,7 @@ function printPurchase(){
       </div>
 
       <div class="header">
-        <img src="/static/maharani-logo-v3.png" alt="Maharani Wedding Collections"
+        <img src="/static/maharani-logo-v4.png" alt="Maharani Wedding Collections"
              style="display:block;max-width:360px;width:100%;height:95px;object-fit:contain;object-position:left center;background:#000;border-radius:6px;margin-bottom:8px;">
         <div class="subtitle">Purchase Details</div>
       </div>

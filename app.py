@@ -557,7 +557,7 @@ def build_purchase_history_pdf(purchases):
     total_meter = sum(float(p.get("total_meter", 0) or 0) for p in purchases)
     total_value = sum(float(p.get("grand_total", 0) or 0) for p in purchases)
 
-    logo_path = BASE_DIR / "static" / "maharani-logo-v3.png"
+    logo_path = BASE_DIR / "static" / "maharani-logo-v4.png"
     story = []
 
     if logo_path.exists():

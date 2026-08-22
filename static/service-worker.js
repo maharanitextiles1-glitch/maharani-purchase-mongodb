@@ -1,14 +1,14 @@
 
-const CACHE_NAME = "maharani-purchase-app-v7";
+const CACHE_NAME = "maharani-purchase-app-v8";
 const APP_SHELL = [
   "/",
   "/static/styles.css",
   "/static/script.js",
-  "/static/maharani-logo-v3.png",
-  "/static/icon-192-v3.png",
-  "/static/icon-512-v3.png",
-  "/static/apple-touch-icon-v3.png",
-  "/static/favicon-v3.png"
+  "/static/maharani-logo-v4.png",
+  "/static/icon-192-v4.png",
+  "/static/icon-512-v4.png",
+  "/static/apple-touch-icon-v4.png",
+  "/static/favicon-v4.png"
 ];
 
 self.addEventListener("install", event => {

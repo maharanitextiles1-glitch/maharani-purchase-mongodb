@@ -3,29 +3,27 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-
-<meta name="theme-color" content="#8d1738">
-
-<!-- PWA Manifest -->
-<link rel="manifest" href="/manifest.json">
-
-<!-- iPhone / iPad App Icon -->
-<link rel="apple-touch-icon" href="/static/apple-touch-icon-v2.png">
-
-<!-- iPhone PWA Settings -->
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Maharani Purchase">
-
+<link rel="apple-touch-icon" href="/static/apple-touch-icon-v3.png">
+<link rel="icon" type="image/png" href="/static/favicon-v3.png">
+<link rel="manifest" href="/manifest.json">
 <title>Maharani Purchase Manager</title>
-
 <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><div class="logo">M</div><div><h1>Maharani Purchase Manager</h1><p>Purchase entry & history</p></div></div>
+  <div class="brand brand-with-image">
+      <img class="maharani-header-logo" src="/static/maharani-logo-v3.png" alt="Maharani Wedding Collections">
+      <div class="brand-app-title">
+        <h1>Maharani Purchase Manager</h1>
+        <p>Purchase entry & history</p>
+      </div>
+    </div>
   <div class="nav">
     <button class="nav-btn active" data-view="entryView">New Purchase</button>
     <button class="nav-btn" data-view="historyView">Purchase History</button>

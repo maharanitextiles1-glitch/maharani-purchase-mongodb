@@ -16,7 +16,7 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, PageBreak
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
 
@@ -557,11 +557,24 @@ def build_purchase_history_pdf(purchases):
     total_meter = sum(float(p.get("total_meter", 0) or 0) for p in purchases)
     total_value = sum(float(p.get("grand_total", 0) or 0) for p in purchases)
 
-    story = [
-        Paragraph("MAHARANI WEDDING COLLECTIONS", title_style),
-        Paragraph("PURCHASE HISTORY REPORT", sub_style),
-        Spacer(1, 5 * mm),
-    ]
+    logo_path = BASE_DIR / "static" / "maharani-logo-v3.png"
+    story = []
+
+    if logo_path.exists():
+        pdf_logo = RLImage(str(logo_path), width=82 * mm, height=32 * mm)
+        pdf_logo.hAlign = "LEFT"
+        story.extend([
+            pdf_logo,
+            Spacer(1, 2 * mm),
+            Paragraph("PURCHASE HISTORY REPORT", sub_style),
+            Spacer(1, 5 * mm),
+        ])
+    else:
+        story.extend([
+            Paragraph("MAHARANI WEDDING COLLECTIONS", title_style),
+            Paragraph("PURCHASE HISTORY REPORT", sub_style),
+            Spacer(1, 5 * mm),
+        ])
 
     summary_data = [
         [
